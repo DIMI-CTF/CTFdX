@@ -25,9 +25,6 @@ CHALLENGE_SCORE=
 ######## container, dynamic 에 해당되는 설정 ########
 # container는 자동으로 푸는 사람에 비례해서 점수가 줄어들음.
 
-# 처음 문제에 점수
-DECAY_INIT=
-
 # 문제의 최소점수
 DECAYED_MINIMUM=
 
