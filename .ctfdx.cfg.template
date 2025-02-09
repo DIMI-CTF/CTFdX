@@ -49,7 +49,7 @@ DECAY_VALUE=
 # TCP가 포너블. SSH는 특수한 상황
 DOCKER_CONNECT_TYPE=
 
-# 포트
+# 컨테이너 expose 포트
 DOCKER_PORT=
 
 # 도커에서 실행할 커맨드. 공란 가능
