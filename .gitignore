@@ -1,1 +1,8 @@
 /.idea/
+/node_modules/
+.env
+.DS_Store
+/repo/
+/packaging/
+/for_user/
+repo.zip
