@@ -65,7 +65,7 @@ DECAY_VALUE=
 
 ######## container 에 해당되는 설정 ########
 # 연결 방식
-# Web, TCP, SSH
+# web, tcp, ssh
 # TCP가 포너블. SSH는 특수한 상황
 DOCKER_CONNECT_TYPE=
 
