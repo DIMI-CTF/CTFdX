@@ -44,6 +44,10 @@ CHALLENGE_MESSAGE=
 # 문제 점수
 CHALLENGE_SCORE=
 
+# 보이게? 안보이게
+# hidden, visible
+CHALLENGE_STATE=
+
 
 ######## container, dynamic 에 해당되는 설정 ########
 # container는 자동으로 푸는 사람에 비례해서 점수가 줄어들음.

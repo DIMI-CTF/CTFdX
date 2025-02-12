@@ -91,19 +91,14 @@ async function deploy() {
   const packaging_dir = path.join(__dirname, "packaging");
   const for_user_dir = path.join(__dirname, "for_user");
   fs.rmSync(packaging_dir, { recursive: true, force: true });
+  fs.rmSync(for_user_dir, { recursive: true, force: true });
   fs.mkdirSync(packaging_dir);
+  fs.mkdirSync(for_user_dir);
 
   const targets = fs.readdirSync(problem_dir);
   for (let i = 0; i < targets.length; i++) {
     const file = targets[i];
-    const image_name = base32.encode(file);
     fs.cpSync(path.join(problem_dir, file), path.join(packaging_dir, file), { recursive: true, force: true });
-
-    // docker build
-    const debug1 = await new Promise((accept) => {
-      child_process.exec(`docker build . -t ${image_name}`, { cwd: path.join(problem_dir, file) }, accept);
-    });
-    if (debug1) throw new Error(`${debug1}`);
 
     // load configs
     const config = loadCfg(path.join(problem_dir, file, ".ctfdx.cfg"));
@@ -124,6 +119,51 @@ async function deploy() {
 
     // flag searching
     searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"));
+
+    // compress to zip
+    const zip = new AdmZip();
+    zip.addLocalFolder(path.join(packaging_dir, file));
+    await zip.writeZipPromise(path.join(for_user_dir, `${file}.zip`));
+
+    // build config
+    const type = config("CHALLENGE_TYPE");
+    const register_config = {};
+    register_config["name"] = config("CHALLENGE_NAME") || file;
+    register_config["description"] = fs.existsSync(path.join(packaging_dir, file, "readme.md")) ? fs.readFileSync(path.join(packaging_dir, file, "readme.md"), "utf-8") : config("CHALLENGE_MESSAGE");
+    register_config["category"] = config("CHALLENGE_CATEGORY") || "";
+    register_config["state"] =  config("CHALLENGE_STATE") || "hidden";
+    switch (type) {
+      case "standard":
+        register_config["type"] = "standard";
+        register_config["value"] = config("CHALLENGE_SCORE") || "";
+        break;
+      case "container":
+        // docker build
+        const image_name = base32.encode(file);
+        const debug1 = await new Promise((accept) => {
+          child_process.exec(`docker build . -t ${image_name}`, { cwd: path.join(problem_dir, file) }, accept);
+        });
+        if (debug1) throw new Error(`${debug1}`);
+        register_config["type"] = "container";
+        register_config["connection_info"] = "Container";
+        register_config["initial"] = config("CHALLENGE_SCORE") || "";
+        register_config["minimum"] = config("DECAYED_MINIMUM") || "";
+        register_config["decay"] = config("DECAY_LIMIT") || "";
+        register_config["ctype"] = config("DOCKER_CONNECT_TYPE") || "";
+        register_config["port"] = config("DOCKER_PORT") || "";
+        register_config["command"] = config("DOCKER_COMMAND") || "";
+        register_config["image"] = `${image_name}:lastest`;
+        break;
+      case "dynamic":
+        register_config["type"] = "dynamic";
+        register_config["initial"] = config("CHALLENGE_SCORE") || "";
+        register_config["minimum"] = config("DECAYED_MINIMUM") || "";
+        register_config["decay"] = config("DECAY_VALUE") || "";
+        register_config["function"] = config("DECAY_FUNCTION") || "";
+        break;
+    }
+
+    console.log(register_config);
   }
 }
 
