@@ -10,9 +10,14 @@ const { finished } = require('stream/promises');
 const base32 = require('base32')
 const AdmZip = require("adm-zip");
 
-const url = "https://api.github.com/repos/DIMI-CTF/2025_freshman_ctf";
-const githubToken = process.env.GITHUB_TOKEN;
-const githubHeader = githubToken ? { "Authorization": `Bearer ${githubToken}` } :  {};
+const { RequestHelper } = require("webhtools");
+
+const ctfdReq = new RequestHelper(`${process.env.CTFD_URI}/api/v1`);
+if (process.env.CTFD_TOKEN) ctfdReq.setTokenAuth(process.env.CTFD_TOKEN);
+ctfdReq.setContentType("application/json");
+
+const githubReq = new RequestHelper("https://api.github.com/repos/DIMI-CTF/2025_freshman_ctf");
+if (process.env.GITHUB_TOKEN) githubReq.setBearerAuth(process.env.GITHUB_TOKEN);
 
 const loadCfg = (path) => {
   const result = {};
@@ -71,12 +76,11 @@ async function deploy() {
   fs.rmSync("./repo", { recursive: true, force: true});
   fs.rmSync("./repo.zip", { recursive: true, force: true });
 
-  const repo_download_res = await fetch(`${url}/zipball/`, { headers: githubHeader });
+  const repo_download_res = await githubReq.get("/zipball");
   if (!repo_download_res.ok) throw new Error("Cannot download repository.");
 
   const file = path.join(__dirname, "./repo.zip");
-  const fileStream = fs.createWriteStream(file, { flags: 'w' });
-  await finished(Readable.fromWeb(repo_download_res.body).pipe(fileStream));
+  fs.writeFileSync(file, repo_download_res.bytes);
 
   const unzip = new AdmZip(path.join(__dirname, "./repo.zip"));
   fs.mkdirSync(path.join(__dirname, "repo"));
@@ -96,8 +100,11 @@ async function deploy() {
   fs.mkdirSync(for_user_dir);
 
   const targets = fs.readdirSync(problem_dir);
+
+  const existing_problems = (await ctfdReq.get("/challenges?view=admin")).json.data;
   for (let i = 0; i < targets.length; i++) {
     const file = targets[i];
+    const base32_file = base32.encode(file);
     fs.cpSync(path.join(problem_dir, file), path.join(packaging_dir, file), { recursive: true, force: true });
 
     // load configs
@@ -139,9 +146,8 @@ async function deploy() {
         break;
       case "container":
         // docker build
-        const image_name = base32.encode(file);
         const debug1 = await new Promise((accept) => {
-          child_process.exec(`docker build . -t ${image_name}`, { cwd: path.join(problem_dir, file) }, accept);
+          child_process.exec(`docker build . -t ${base32_file}`, { cwd: path.join(problem_dir, file) }, accept);
         });
         if (debug1) throw new Error(`${debug1}`);
         register_config["type"] = "container";
@@ -152,7 +158,7 @@ async function deploy() {
         register_config["ctype"] = config("DOCKER_CONNECT_TYPE") || "";
         register_config["port"] = config("DOCKER_PORT") || "";
         register_config["command"] = config("DOCKER_COMMAND") || "";
-        register_config["image"] = `${image_name}:lastest`;
+        register_config["image"] = `${base32_file}:latest`;
         break;
       case "dynamic":
         register_config["type"] = "dynamic";
@@ -163,7 +169,37 @@ async function deploy() {
         break;
     }
 
-    console.log(register_config);
+    // create or modify challenge
+    let challenge_id = "";
+    const exists = existing_problems.find((e) => e.tags.find((tag) => tag.value === `ctfdx_${base32_file}`));
+    if (exists) {
+      challenge_id = exists.id;
+      await ctfdReq.patch(`/challenges/${challenge_id}`, register_config);
+      const get_flag_res = await ctfdReq.get(`/flags?challenge_id=${challenge_id}`);
+      if (get_flag_res.json.data.length === 0) {
+        await ctfdReq.post("/flags", { challenge: challenge_id, content: config("FLAG"), data: "", type: "static" });
+      }else {
+        await ctfdReq.patch(`/flags/${get_flag_res.json.data[0].id}`, { challenge: challenge_id, content: config("FLAG"), data: "", type: "static" });
+      }
+    }else {
+      challenge_id = (await ctfdReq.post("/challenges", register_config)).json.data.id;
+      await ctfdReq.post("/tags", { challenge: challenge_id, value: `ctfdx_${base32_file}` });
+      await ctfdReq.post("/flags", { challenge: challenge_id, content: config("FLAG"), data: "", type: "static" });
+    }
+
+    const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
+    challenge_files.forEach((file) => {
+      ctfdReq.delete(`/files/${file.id}`);
+    });
+    ctfdReq.setContentType("multipart/form-data");
+    const blob = new Blob(fs.readFileSync(path.join(for_user_dir, `${file}.zip`)), { type: "application/zip" });
+    const res = await ctfdReq.post("/files", {
+      type: "challenge",
+      challenge: challenge_id,
+      file: blob,
+    });
+    console.log(res);
+    ctfdReq.setContentType("application/json");
   }
 }
 

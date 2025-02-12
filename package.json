@@ -2,6 +2,7 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "base32": "^0.0.7",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "webhtools": "^0.2.0"
   }
 }
