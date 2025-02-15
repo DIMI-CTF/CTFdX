@@ -20,6 +20,9 @@ ctfdReq.setContentType("application/json");
 const githubReq = new RequestHelper("https://api.github.com/repos/DIMI-CTF/2025_freshman_ctf");
 if (process.env.GITHUB_TOKEN) githubReq.setBearerAuth(process.env.GITHUB_TOKEN);
 
+const STATE = { state: 'pending', data: null };
+const LAST_JOB = null;
+
 const loadCfg = (path) => {
   const result = {};
 
@@ -77,6 +80,8 @@ async function deploy() {
   fs.rmSync("./repo", { recursive: true, force: true});
   fs.rmSync("./repo.zip", { recursive: true, force: true });
 
+  STATE.state = 'running';
+  STATE.data = { detail: "fetching problems" };
   const repo_download_res = await githubReq.get("/zipball");
   if (!repo_download_res.ok) throw new Error("Cannot download repository.");
 
@@ -102,18 +107,22 @@ async function deploy() {
 
   const targets = fs.readdirSync(problem_dir);
 
+  STATE.data = { detail: "packaging", target: null, step: null };
   const existing_problems = (await ctfdReq.get("/challenges?view=admin")).json.data;
   for (let i = 0; i < targets.length; i++) {
+    STATE.data.target = targets[i];
     const file = targets[i];
     const base32_file = base32.encode(file);
 
     // load configs
+    STATE.data.step = "loading configuration" ;
     const config = loadCfg(path.join(problem_dir, file, ".ctfdx.cfg"));
     if (!config) continue;
 
     fs.cpSync(path.join(problem_dir, file), path.join(packaging_dir, file), { recursive: true, force: true });
 
     // replace REDACTED files
+    STATE.data.step = "replacing redacted files" ;
     const redacted = config("REDACTED_FILE");
     fs.rmSync(path.join(packaging_dir, file, ".ctfdx.cfg"), { recursive: true, force: true });
     if (redacted) {
@@ -127,6 +136,7 @@ async function deploy() {
     }
 
     // flag searching
+    STATE.data.step = "searching flags";
     try {
       searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"));
     } catch (e) {
@@ -134,11 +144,14 @@ async function deploy() {
     }
 
     // compress to zip
+    STATE.data.step = "compressing";
     const zip = new AdmZip();
     zip.addLocalFolder(path.join(packaging_dir, file));
     await zip.writeZipPromise(path.join(for_user_dir, `${file}.zip`));
 
     // build config
+    STATE.data.detail = "uploading problems";
+    STATE.data.step = "building configuration";
     const type = config("CHALLENGE_TYPE");
     const register_config = {};
     register_config["name"] = config("CHALLENGE_NAME") || file;
@@ -153,7 +166,7 @@ async function deploy() {
       case "container":
         // docker build
         const debug1 = await new Promise((accept) => {
-          child_process.exec(`docker build . -t ${base32_file}`, { cwd: path.join(problem_dir, file, config("DOCKER_LOCATION")) || path.join(problem_dir, file) }, accept);
+          child_process.exec(`docker build . -t ${base32_file}`, { cwd: config("DOCKER_LOCATION") ? path.join(problem_dir, file, config("DOCKER_LOCATION")) : path.join(problem_dir, file) }, accept);
         });
         if (debug1) throw new Error(`${debug1}`);
         register_config["type"] = "container";
@@ -176,6 +189,7 @@ async function deploy() {
     }
 
     // create or modify challenge
+    STATE.data.step = "creating/patching problem to ctfd";
     let challenge_id = "";
     const exists = existing_problems.find((e) => e.tags.find((tag) => tag.value === `ctfdx_${base32_file}`));
     if (exists) {
@@ -193,6 +207,7 @@ async function deploy() {
       await ctfdReq.post("/flags", { challenge: challenge_id, content: config("FLAG"), data: "", type: "static" });
     }
 
+    STATE.data.step = "uploading for user file to ctfd";
     if (!!(config("POST_FILE_FOR_USER") || true)) {
       const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
       challenge_files.forEach((file) => {
@@ -214,7 +229,17 @@ async function deploy() {
         path: "/api/v1/files"
       });
     }
+
+    STATE.data.detail = null;
+    STATE.data.target = null;
+    STATE.data.step = null;
   }
+  STATE.data = null;
+  STATE.state = "done";
 }
+
+setInterval(() => {
+  process.stdout.write(`\r${JSON.stringify(STATE)}                                                                                                          `);
+})
 
 deploy();
