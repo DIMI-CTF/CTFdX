@@ -18,21 +18,12 @@ if (process.env.CTFD_TOKEN) ctfdReq.setTokenAuth(process.env.CTFD_TOKEN);
 ctfdReq.setContentType("application/json");
 
 const githubReq = new RequestHelper("https://api.github.com/repos/DIMI-CTF/2025_freshman_ctf");
-if (process.env.GITHUB_TOKEN) githubReq.setBearerAuth(process.env.GITHUB_TOKEN);
-
-const toArrayBuffer = (buffer) => {
-  const arrayBuffer = new ArrayBuffer(buffer.length);
-  const view = new Uint8Array(arrayBuffer);
-  for (let i = 0; i < buffer.length; ++i) {
-    view[i] = buffer[i];
-  }
-  return arrayBuffer;
-}
+if (process.env.GITHUB_TOKEN) githubReq.setBearerAuth(process.env.GITHUB_TOKEN);\
 
 const loadCfg = (path) => {
   const result = {};
 
-  if (!fs.existsSync(path)) throw Error('Could not find file');
+  if (!fs.existsSync(path)) return null;
   const config = fs.readFileSync(path, 'utf8');
 
   const per_line = config.split("\n");
@@ -115,11 +106,12 @@ async function deploy() {
   for (let i = 0; i < targets.length; i++) {
     const file = targets[i];
     const base32_file = base32.encode(file);
-    fs.cpSync(path.join(problem_dir, file), path.join(packaging_dir, file), { recursive: true, force: true });
 
     // load configs
     const config = loadCfg(path.join(problem_dir, file, ".ctfdx.cfg"));
-    console.log(config);
+    if (!config) continue;
+
+    fs.cpSync(path.join(problem_dir, file), path.join(packaging_dir, file), { recursive: true, force: true });
 
     // replace REDACTED files
     const redacted = config("REDACTED_FILE");
@@ -135,7 +127,11 @@ async function deploy() {
     }
 
     // flag searching
-    searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"));
+    try {
+      searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"));
+    } catch (e) {
+      continue;
+    }
 
     // compress to zip
     const zip = new AdmZip();
