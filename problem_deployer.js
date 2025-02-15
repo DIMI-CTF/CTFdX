@@ -193,25 +193,27 @@ async function deploy() {
       await ctfdReq.post("/flags", { challenge: challenge_id, content: config("FLAG"), data: "", type: "static" });
     }
 
-    const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
-    challenge_files.forEach((file) => {
-      ctfdReq.delete(`/files/${file.id}`);
-    });
-    const formData = new FormData();
-    formData.append("type", "challenge");
-    formData.append("challenge_id", challenge_id);
-    formData.append("file", fs.createReadStream(path.join(for_user_dir, `${file}.zip`)), `${encodeURIComponent(file)}.zip`);
-    formData.submit({
-      method: "POST",
-      headers: {
-        "Authorization": `Token ${process.env.CTFD_TOKEN}`,
-        ...formData.getHeaders(),
-      },
-      protocol: process.env.CTFD_URI.split("//")[0],
-      host: process.env.CTFD_URI.split("//")[1].split(":")[0],
-      port: process.env.CTFD_URI.split("//")[1].split(":")[1],
-      path: "/api/v1/files"
-    });
+    if (!!(config("POST_FILE_FOR_USER") || true)) {
+      const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
+      challenge_files.forEach((file) => {
+        ctfdReq.delete(`/files/${file.id}`);
+      });
+      const formData = new FormData();
+      formData.append("type", "challenge");
+      formData.append("challenge_id", challenge_id);
+      formData.append("file", fs.createReadStream(path.join(for_user_dir, `${file}.zip`)), `${encodeURIComponent(file)}.zip`);
+      formData.submit({
+        method: "POST",
+        headers: {
+          "Authorization": `Token ${process.env.CTFD_TOKEN}`,
+          ...formData.getHeaders(),
+        },
+        protocol: process.env.CTFD_URI.split("//")[0],
+        host: process.env.CTFD_URI.split("//")[1].split(":")[0],
+        port: process.env.CTFD_URI.split("//")[1].split(":")[1],
+        path: "/api/v1/files"
+      });
+    }
   }
 }
 

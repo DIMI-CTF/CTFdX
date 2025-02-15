@@ -17,6 +17,9 @@ REDACTED_FILE=
 # 쉼표로 구분
 SAFE_FLAG_FILE=
 
+# 유저에게 문제파일을 제공할지 기본적으로 true
+# true, false
+POST_FILE_FOR_USER=
 
 
 
