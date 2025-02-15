@@ -9,6 +9,7 @@ const { finished } = require('stream/promises');
 
 const base32 = require('base32')
 const AdmZip = require("adm-zip");
+const FormData = require("form-data");
 
 const { RequestHelper } = require("webhtools");
 
@@ -18,6 +19,15 @@ ctfdReq.setContentType("application/json");
 
 const githubReq = new RequestHelper("https://api.github.com/repos/DIMI-CTF/2025_freshman_ctf");
 if (process.env.GITHUB_TOKEN) githubReq.setBearerAuth(process.env.GITHUB_TOKEN);
+
+const toArrayBuffer = (buffer) => {
+  const arrayBuffer = new ArrayBuffer(buffer.length);
+  const view = new Uint8Array(arrayBuffer);
+  for (let i = 0; i < buffer.length; ++i) {
+    view[i] = buffer[i];
+  }
+  return arrayBuffer;
+}
 
 const loadCfg = (path) => {
   const result = {};
@@ -146,10 +156,10 @@ async function deploy() {
         break;
       case "container":
         // docker build
-        const debug1 = await new Promise((accept) => {
-          child_process.exec(`docker build . -t ${base32_file}`, { cwd: path.join(problem_dir, file) }, accept);
-        });
-        if (debug1) throw new Error(`${debug1}`);
+        // const debug1 = await new Promise((accept) => {
+        //   child_process.exec(`docker build . -t ${base32_file}`, { cwd: path.join(problem_dir, file) }, accept);
+        // });
+        // if (debug1) throw new Error(`${debug1}`);
         register_config["type"] = "container";
         register_config["connection_info"] = "Container";
         register_config["initial"] = config("CHALLENGE_SCORE") || "";
@@ -191,15 +201,21 @@ async function deploy() {
     challenge_files.forEach((file) => {
       ctfdReq.delete(`/files/${file.id}`);
     });
-    ctfdReq.setContentType("multipart/form-data");
-    const blob = new Blob(fs.readFileSync(path.join(for_user_dir, `${file}.zip`)), { type: "application/zip" });
-    const res = await ctfdReq.post("/files", {
-      type: "challenge",
-      challenge: challenge_id,
-      file: blob,
+    const formData = new FormData();
+    formData.append("type", "challenge");
+    formData.append("challenge_id", challenge_id);
+    formData.append("file", fs.createReadStream(path.join(for_user_dir, `${file}.zip`)));
+    formData.submit({
+      method: "POST",
+      headers: {
+        "Authorization": `Token ${process.env.CTFD_TOKEN}`,
+        ...formData.getHeaders(),
+      },
+      protocol: process.env.CTFD_URI.split("//")[0],
+      host: process.env.CTFD_URI.split("//")[1].split(":")[0],
+      port: process.env.CTFD_URI.split("//")[1].split(":")[1],
+      path: "/api/v1/files"
     });
-    console.log(res);
-    ctfdReq.setContentType("application/json");
   }
 }
 
