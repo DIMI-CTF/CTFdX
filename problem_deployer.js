@@ -204,7 +204,7 @@ async function deploy() {
     const formData = new FormData();
     formData.append("type", "challenge");
     formData.append("challenge_id", challenge_id);
-    formData.append("file", fs.createReadStream(path.join(for_user_dir, `${file}.zip`)));
+    formData.append("file", fs.createReadStream(path.join(for_user_dir, `${file}.zip`)), `${encodeURIComponent(file)}.zip`);
     formData.submit({
       method: "POST",
       headers: {
