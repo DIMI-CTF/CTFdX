@@ -4,14 +4,18 @@ const fs = require('fs');
 const path = require('path');
 const child_process = require('child_process');
 
-const { Readable } = require('stream');
-const { finished } = require('stream/promises');
+const base32 = require('base32');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, MessageFlags } = require('discord.js');
+const AdmZip = require('adm-zip');
+const FormData = require('form-data');
 
-const base32 = require('base32')
-const AdmZip = require("adm-zip");
-const FormData = require("form-data");
+const EmbedManager = require('./EmbedManager');
+const { RequestHelper } = require('webhtools');
 
-const { RequestHelper } = require("webhtools");
+const STATE = { state: 'pending', data: null };
+let last_state = null;
+let discord_channel = null;
+let state_embed = null;
 
 const ctfdReq = new RequestHelper(`${process.env.CTFD_URI}/api/v1`);
 if (process.env.CTFD_TOKEN) ctfdReq.setTokenAuth(process.env.CTFD_TOKEN);
@@ -20,8 +24,38 @@ ctfdReq.setContentType("application/json");
 const githubReq = new RequestHelper("https://api.github.com/repos/DIMI-CTF/2025_freshman_ctf");
 if (process.env.GITHUB_TOKEN) githubReq.setBearerAuth(process.env.GITHUB_TOKEN);
 
-const STATE = { state: 'pending', data: null };
-const LAST_JOB = null;
+const discord_client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+const updateState = async () => {
+  if (!discord_channel) return;
+  if (!state_embed || !state_embed.message || state_embed.message.deleted) {
+    state_embed = new EmbedManager().setTitle("CTFdX deploy status");
+    const channel = discord_client.channels.cache.get(discord_channel);
+
+    state_embed
+      .setDescription(`Currently, ${STATE.state}`)
+      .addFields(
+    { name: "Working on", value: STATE.data.detail || "null", inline: true },
+        { name: "For", value: STATE.data.target || "null", inline: true },
+        { name: "Step", value: STATE.data.step || "null", inline: true },
+      )
+      .setColor("Random");
+    state_embed.setMessage(await channel.send({ embeds: [state_embed] }));
+  }else {
+    state_embed.setDescription(`Currently, ${STATE.state}`)
+    state_embed.changeField("Working on", STATE.data.detail || "null", true);
+    state_embed.changeField("For", STATE.data.target || "null", true);
+    state_embed.changeField("Step", STATE.data.step || "null", true);
+    try {
+      await state_embed.edit();
+    }catch(err) {
+      const channel = discord_client.channels.cache.get(discord_channel);
+      state_embed.setMessage(await channel.send({ embeds: [state_embed] }));
+    }
+  }
+
+  last_state = STATE;
+}
 
 const loadCfg = (path) => {
   const result = {};
@@ -67,7 +101,6 @@ const searchFlag = (dir, flag, safes = []) => {
       const normalized_decoded_string = strings.normalize("NFC");
       const normalized_flag = flag.normalize("NFC");
       if (normalized_decoded_string.indexOf(normalized_flag) !== -1) {
-        console.log(normalized_decoded_string);
         throw new Error("Unsafe hardcoded flag found in " + path.join(dir, item));
       }
     }
@@ -82,6 +115,7 @@ async function deploy() {
 
   STATE.state = 'running';
   STATE.data = { detail: "fetching problems" };
+  await updateState();
   const repo_download_res = await githubReq.get("/zipball");
   if (!repo_download_res.ok) throw new Error("Cannot download repository.");
 
@@ -107,139 +141,206 @@ async function deploy() {
 
   const targets = fs.readdirSync(problem_dir);
 
-  STATE.data = { detail: "packaging", target: null, step: null };
+  STATE.data = { detail: null, target: null, step: null };
+  await updateState();
   const existing_problems = (await ctfdReq.get("/challenges?view=admin")).json.data;
-  for (let i = 0; i < targets.length; i++) {
-    STATE.data.target = targets[i];
-    const file = targets[i];
-    const base32_file = base32.encode(file);
+  try {
+    for (let i = 0; i < targets.length; i++) {
+      STATE.data.detail = "packaging";
+      STATE.data.target = targets[i];
+      await updateState();
+      const file = targets[i];
+      const base32_file = base32.encode(file);
 
-    // load configs
-    STATE.data.step = "loading configuration" ;
-    const config = loadCfg(path.join(problem_dir, file, ".ctfdx.cfg"));
-    if (!config) continue;
+      // load configs
+      STATE.data.step = "loading configuration";
+      await updateState();
+      const config = loadCfg(path.join(problem_dir, file, ".ctfdx.cfg"));
+      if (!config) continue;
 
-    fs.cpSync(path.join(problem_dir, file), path.join(packaging_dir, file), { recursive: true, force: true });
+      fs.cpSync(path.join(problem_dir, file), path.join(packaging_dir, file), {recursive: true, force: true});
 
-    // replace REDACTED files
-    STATE.data.step = "replacing redacted files" ;
-    const redacted = config("REDACTED_FILE");
-    fs.rmSync(path.join(packaging_dir, file, ".ctfdx.cfg"), { recursive: true, force: true });
-    if (redacted) {
-      if (typeof redacted === "string")
-        fs.writeFileSync(path.join(packaging_dir, file, redacted), "[REDACTED]");
-      else {
-        for (let j = 0; j < redacted.length; j++) {
-          fs.writeFileSync(path.join(packaging_dir, file, redacted[j]), "[REDACTED]");
+      // replace REDACTED files
+      STATE.data.step = "replacing redacted files";
+      await updateState();
+      const redacted = config("REDACTED_FILE");
+      fs.rmSync(path.join(packaging_dir, file, ".ctfdx.cfg"), {recursive: true, force: true});
+      if (redacted) {
+        if (typeof redacted === "string")
+          fs.writeFileSync(path.join(packaging_dir, file, redacted), "[REDACTED]");
+        else {
+          for (let j = 0; j < redacted.length; j++) {
+            fs.writeFileSync(path.join(packaging_dir, file, redacted[j]), "[REDACTED]");
+          }
         }
       }
-    }
 
-    // flag searching
-    STATE.data.step = "searching flags";
-    try {
+      // flag searching
+      STATE.data.step = "searching flags";
+      await updateState();
       searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"));
-    } catch (e) {
-      continue;
-    }
 
-    // compress to zip
-    STATE.data.step = "compressing";
-    const zip = new AdmZip();
-    zip.addLocalFolder(path.join(packaging_dir, file));
-    await zip.writeZipPromise(path.join(for_user_dir, `${file}.zip`));
+      // compress to zip
+      STATE.data.step = "compressing";
+      await updateState();
+      const zip = new AdmZip();
+      zip.addLocalFolder(path.join(packaging_dir, file));
+      await zip.writeZipPromise(path.join(for_user_dir, `${file}.zip`));
 
-    // build config
-    STATE.data.detail = "uploading problems";
-    STATE.data.step = "building configuration";
-    const type = config("CHALLENGE_TYPE");
-    const register_config = {};
-    register_config["name"] = config("CHALLENGE_NAME") || file;
-    register_config["description"] = fs.existsSync(path.join(packaging_dir, file, "readme.md")) ? fs.readFileSync(path.join(packaging_dir, file, "readme.md"), "utf-8") : config("CHALLENGE_MESSAGE");
-    register_config["category"] = config("CHALLENGE_CATEGORY") || "";
-    register_config["state"] =  config("CHALLENGE_STATE") || "hidden";
-    switch (type) {
-      case "standard":
-        register_config["type"] = "standard";
-        register_config["value"] = config("CHALLENGE_SCORE") || "";
-        break;
-      case "container":
-        // docker build
-        const debug1 = await new Promise((accept) => {
-          child_process.exec(`docker build . -t ${base32_file}`, { cwd: config("DOCKER_LOCATION") ? path.join(problem_dir, file, config("DOCKER_LOCATION")) : path.join(problem_dir, file) }, accept);
-        });
-        if (debug1) throw new Error(`${debug1}`);
-        register_config["type"] = "container";
-        register_config["connection_info"] = "Container";
-        register_config["initial"] = config("CHALLENGE_SCORE") || "";
-        register_config["minimum"] = config("DECAYED_MINIMUM") || "";
-        register_config["decay"] = config("DECAY_LIMIT") || "";
-        register_config["ctype"] = config("DOCKER_CONNECT_TYPE") || "";
-        register_config["port"] = config("DOCKER_PORT") || "";
-        register_config["command"] = config("DOCKER_COMMAND") || "";
-        register_config["image"] = `${base32_file}:latest`;
-        break;
-      case "dynamic":
-        register_config["type"] = "dynamic";
-        register_config["initial"] = config("CHALLENGE_SCORE") || "";
-        register_config["minimum"] = config("DECAYED_MINIMUM") || "";
-        register_config["decay"] = config("DECAY_VALUE") || "";
-        register_config["function"] = config("DECAY_FUNCTION") || "";
-        break;
-    }
-
-    // create or modify challenge
-    STATE.data.step = "creating/patching problem to ctfd";
-    let challenge_id = "";
-    const exists = existing_problems.find((e) => e.tags.find((tag) => tag.value === `ctfdx_${base32_file}`));
-    if (exists) {
-      challenge_id = exists.id;
-      await ctfdReq.patch(`/challenges/${challenge_id}`, register_config);
-      const get_flag_res = await ctfdReq.get(`/flags?challenge_id=${challenge_id}`);
-      if (get_flag_res.json.data.length === 0) {
-        await ctfdReq.post("/flags", { challenge: challenge_id, content: config("FLAG"), data: "", type: "static" });
-      }else {
-        await ctfdReq.patch(`/flags/${get_flag_res.json.data[0].id}`, { challenge: challenge_id, content: config("FLAG"), data: "", type: "static" });
+      // build config
+      STATE.data.detail = "uploading problems";
+      STATE.data.step = "building configuration";
+      await updateState();
+      const type = config("CHALLENGE_TYPE");
+      const register_config = {};
+      register_config["name"] = config("CHALLENGE_NAME") || file;
+      register_config["description"] = fs.existsSync(path.join(packaging_dir, file, "readme.md")) ? fs.readFileSync(path.join(packaging_dir, file, "readme.md"), "utf-8") : config("CHALLENGE_MESSAGE");
+      register_config["category"] = config("CHALLENGE_CATEGORY") || "";
+      register_config["state"] = config("CHALLENGE_STATE") || "hidden";
+      switch (type) {
+        case "standard":
+          register_config["type"] = "standard";
+          register_config["value"] = config("CHALLENGE_SCORE") || "";
+          break;
+        case "container":
+          // docker build
+          const debug1 = await new Promise((accept) => {
+            child_process.exec(`docker build . -t ${base32_file}`, {cwd: config("DOCKER_LOCATION") ? path.join(problem_dir, file, config("DOCKER_LOCATION")) : path.join(problem_dir, file)}, accept);
+          });
+          if (debug1) throw new Error(`${debug1}`);
+          register_config["type"] = "container";
+          register_config["connection_info"] = "Container";
+          register_config["initial"] = config("CHALLENGE_SCORE") || "";
+          register_config["minimum"] = config("DECAYED_MINIMUM") || "";
+          register_config["decay"] = config("DECAY_LIMIT") || "";
+          register_config["ctype"] = config("DOCKER_CONNECT_TYPE") || "";
+          register_config["port"] = config("DOCKER_PORT") || "";
+          register_config["command"] = config("DOCKER_COMMAND") || "";
+          register_config["image"] = `${base32_file}:latest`;
+          break;
+        case "dynamic":
+          register_config["type"] = "dynamic";
+          register_config["initial"] = config("CHALLENGE_SCORE") || "";
+          register_config["minimum"] = config("DECAYED_MINIMUM") || "";
+          register_config["decay"] = config("DECAY_VALUE") || "";
+          register_config["function"] = config("DECAY_FUNCTION") || "";
+          break;
       }
-    }else {
-      challenge_id = (await ctfdReq.post("/challenges", register_config)).json.data.id;
-      await ctfdReq.post("/tags", { challenge: challenge_id, value: `ctfdx_${base32_file}` });
-      await ctfdReq.post("/flags", { challenge: challenge_id, content: config("FLAG"), data: "", type: "static" });
-    }
 
-    STATE.data.step = "uploading for user file to ctfd";
-    if (!!(config("POST_FILE_FOR_USER") || true)) {
-      const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
-      challenge_files.forEach((file) => {
-        ctfdReq.delete(`/files/${file.id}`);
-      });
-      const formData = new FormData();
-      formData.append("type", "challenge");
-      formData.append("challenge_id", challenge_id);
-      formData.append("file", fs.createReadStream(path.join(for_user_dir, `${file}.zip`)), `${encodeURIComponent(file)}.zip`);
-      formData.submit({
-        method: "POST",
-        headers: {
-          "Authorization": `Token ${process.env.CTFD_TOKEN}`,
-          ...formData.getHeaders(),
-        },
-        protocol: process.env.CTFD_URI.split("//")[0],
-        host: process.env.CTFD_URI.split("//")[1].split(":")[0],
-        port: process.env.CTFD_URI.split("//")[1].split(":")[1],
-        path: "/api/v1/files"
-      });
-    }
+      // create or modify challenge
+      STATE.data.step = "creating/patching problem to ctfd";
+      await updateState();
+      let challenge_id = "";
+      const exists = existing_problems.find((e) => e.tags.find((tag) => tag.value === `ctfdx_${base32_file}`));
+      if (exists) {
+        challenge_id = exists.id;
+        await ctfdReq.patch(`/challenges/${challenge_id}`, register_config);
+        const get_flag_res = await ctfdReq.get(`/flags?challenge_id=${challenge_id}`);
+        if (get_flag_res.json.data.length === 0) {
+          await ctfdReq.post("/flags", {challenge: challenge_id, content: config("FLAG"), data: "", type: "static"});
+        } else {
+          await ctfdReq.patch(`/flags/${get_flag_res.json.data[0].id}`, {
+            challenge: challenge_id,
+            content: config("FLAG"),
+            data: "",
+            type: "static"
+          });
+        }
+      } else {
+        challenge_id = (await ctfdReq.post("/challenges", register_config)).json.data.id;
+        await ctfdReq.post("/tags", {challenge: challenge_id, value: `ctfdx_${base32_file}`});
+        await ctfdReq.post("/flags", {challenge: challenge_id, content: config("FLAG"), data: "", type: "static"});
+      }
 
-    STATE.data.detail = null;
-    STATE.data.target = null;
-    STATE.data.step = null;
+      STATE.data.step = "uploading for user file to ctfd";
+      await updateState();
+      if (!!(config("POST_FILE_FOR_USER") || true)) {
+        const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
+        challenge_files.forEach((file) => {
+          ctfdReq.delete(`/files/${file.id}`);
+        });
+        const formData = new FormData();
+        formData.append("type", "challenge");
+        formData.append("challenge_id", challenge_id);
+        formData.append("file", fs.createReadStream(path.join(for_user_dir, `${file}.zip`)), `${encodeURIComponent(file)}.zip`);
+        formData.submit({
+          method: "POST",
+          headers: {
+            "Authorization": `Token ${process.env.CTFD_TOKEN}`,
+            ...formData.getHeaders(),
+          },
+          protocol: process.env.CTFD_URI.split("//")[0],
+          host: process.env.CTFD_URI.split("//")[1].split(":")[0],
+          port: process.env.CTFD_URI.split("//")[1].split(":")[1],
+          path: "/api/v1/files"
+        });
+      }
+
+      STATE.data.step = null;
+    }
+  } catch (err) {
+
   }
-  STATE.data = null;
   STATE.state = "done";
+  STATE.data.detail = null;
+  STATE.data.target = null;
+  STATE.data.step = null;
+  await updateState();
+
+  // fs.rmSync("./repo", { recursive: true, force: true });
+  // fs.rmSync("./packaging", { recursive: true, force: true });
+  // fs.rmSync("./for_user", { recursive: true, force: true });
+  // fs.rmSync("./repo.zip", { recursive: true, force: true });
+
+  STATE.state = "pending";
+  await updateState();
 }
 
-setInterval(() => {
-  process.stdout.write(`\r${JSON.stringify(STATE)}                                                                                                          `);
-})
+discord_client.on("interactionCreate", async (interaction) => {
+  console.log(interaction.commandName);
+  switch (interaction.commandName) {
+    case "ping":
+      await interaction.reply({ content: "pong!", flags: MessageFlags.Ephemeral });
+      break;
+    case "set-channel":
+      discord_channel = interaction.channelId;
+      await interaction.reply({ content: `Successfully set the ctfdx channel as <#${discord_channel}>`, flags: MessageFlags.Ephemeral });
+      break;
+    case "deploy":
+      console.log("asdf");
+      await interaction.reply({ content: "Deploying...", flags: MessageFlags.Ephemeral });
+      deploy();
+      break;
+  }
+});
 
-deploy();
+discord_client.once("ready", (readyClient) => {
+  console.log(`Client ready. Logged in as ${readyClient.user.tag} at ${new Date()}`);
+
+  const commands = [
+    new SlashCommandBuilder()
+      .setName("ping")
+      .setDescription("pong"),
+    new SlashCommandBuilder()
+      .setName("set-channel")
+      .setDescription("Set default channel for ctfdx"),
+    new SlashCommandBuilder()
+      .setName("deploy")
+      .setDescription("Deploy problem to ctfd"),
+  ];
+
+  commands.forEach(async (command) => {
+    // discord_client.application.commands.set([]);
+    // discord_client.guilds.cache.get("914879556303847434").commands.set([]);
+    await discord_client.application.commands.create(command);
+    // discord_client.guilds.cache.get("914879556303847434").commands.create(command);
+  });
+});
+discord_client.login(process.env.DISCORD_TOKEN);
+
+// setInterval(async () => {
+//   if (STATE.state !== "running" || STATE.data)
+//     await updateState();
+// }, 1000);
+
+// deploy();
