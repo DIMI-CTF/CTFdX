@@ -1,0 +1,271 @@
+{% extends "admin/base.html" %}
+
+
+{% block content %}
+
+<style>
+	.containers-kill-btn {
+		padding: 5px;
+		line-height: 0
+	}
+
+	.containers-container {
+		max-width: none;
+	}
+</style>
+
+<div class="jumbotron">
+	<div class="container">
+		<h1>Containers</h1>
+	</div>
+</div>
+<div class="container containers-container">
+	{% with messages = get_flashed_messages() %}
+	{% if messages %}
+	{% for message in messages %}
+	<div class="alert alert-danger" role="alert">
+		{{ message }}
+	</div>
+	{% endfor %}
+	{% endif %}
+	{% endwith %}
+	<button class="btn btn-success" onclick="window.location.reload()"><i class="fas fa-sync"></i></button>
+	<button class="btn btn-danger" id="container-purge-btn" onclick="purgeContainers()" style="float:right">Purge All
+		Containers</button>
+	<a class="btn btn-primary" href="{{ url_for('.route_containers_settings') }}"
+		style="float:right;margin-right:10px">Settings</a>
+
+	{% if connected %}
+	<span class="badge badge-success">Docker Connected</span>
+	{% else %}
+	<span class="badge badge-danger">Docker Not Connected</span>
+	{% endif %}
+
+	<div class="mt-3">
+		<label for="team-filter"><strong>Filter </strong></label>
+		<div class="row">
+			<div class="col-md-4">
+				<div class="form-group">
+					<select id="team-filter" class="form-control">
+						<option value="">All Teams/Users</option>
+						<!-- Add options for teams dynamically based on your data -->
+					</select>
+				</div>
+			</div>
+			<div class="col-md-4">
+				<div class="form-group">
+					<select id="challenge-filter" class="form-control">
+						<option value="">All Challenges</option>
+						<!-- Add options for challenges dynamically based on your data -->
+					</select>
+				</div>
+			</div>
+			<div class="col-md-4">
+				<button class="btn btn-primary" id="apply-filter-btn" onclick="applyFilters()">Apply Filters</button>
+			</div>
+		</div>
+    </div>
+
+	<table class="table">
+		{% if containers %}
+		{% for c in containers %}
+		<thead>
+			<tr>
+				<td><strong>Container ID</strong>
+				</td>
+				<td><strong>Image</strong>
+				</td>
+				<td><strong>Challenge</strong>
+				</td>
+				{% if c.team == None %}
+				<td><strong>User</strong></td>
+				{% else %}
+				<td><strong>User</strong></td>
+				<td><strong>Team</strong></td>
+				{% endif %}
+				<td><strong>Port</strong>
+				</td>
+				<td><strong>Created</strong>
+				</td>
+				<td><strong>Expires</strong>
+				</td>
+				<td><strong>Running</strong>
+				</td>
+				<td><strong>Kill</strong>
+			</tr>
+		</thead>
+		<tbody id="container-table-body">
+			
+			<tr>
+				<td class="container_item" id="{{ c.container_id }}">{{ c.container_id[:12] }}</td>
+				<td>{{ c.challenge.image }}</td>
+				<td>{{ c.challenge.name }} [{{ c.challenge_id }}]</td>
+				{% if c.team == None %}
+					<td>{{ c.user.name }} [{{ c.user_id }}]</td>
+				{% else %}
+					<td>{{ c.user.name }} [{{ c.user_id }}]</td> 
+					<td>{{ c.team.name }} [{{ c.team_id }}]</td>
+			   	{% endif %}
+				<td>{{ c.port }}</td>
+				<td>{{ c.timestamp|format_time }}</td>
+				<td>{{ c.expires|format_time }}</td>
+				{% if c.is_running %}
+				<td><span class="badge badge-success">Yes</span></td>
+				{% else %}
+				<td><span class="badge badge-danger">No</span></td>
+				{% endif %}
+				<td><button class="btn btn-danger containers-kill-btn"
+						onclick="killContainer('{{ c.container_id }}')"><i class="fa fa-times"></i></button></td>
+			</tr>
+		</tbody>
+		{% endfor %}
+		{% endif %}
+	</table>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+
+	let globalData; 
+	fetch('/containers/api/running_containers')
+		.then((response) => {
+			if (!response.ok) {
+			throw new Error('Network response was not ok');
+			}
+			return response.json();
+		})
+		.then((data) => {
+			globalData = data;
+			// Data has been successfully fetched and parsed
+			// Now you can populate the teams and challenges selects
+			const teamSelect = document.getElementById("team-filter");
+			const challengeSelect = document.getElementById("challenge-filter");
+
+			// Populate the teams select
+			data.teams.forEach((team) => {
+				const option = document.createElement("option");
+				option.value = team;
+				option.text = team;
+				teamSelect.appendChild(option);
+			});
+
+			// Populate the challenges select
+			data.challenges.forEach((challenge) => {
+				const option = document.createElement("option");
+				option.value = challenge;
+				option.text = challenge;
+				challengeSelect.appendChild(option);
+			});
+		})
+		.catch((error) => {
+			console.error('There was a problem with the fetch operation:', error);
+	});
+
+	function applyFilters() {
+		const selectedTeam = document.getElementById("team-filter").value;
+		const selectedChallenge = document.getElementById("challenge-filter").value;
+
+		const responseData = globalData;
+
+		const containerTableBody = document.getElementById("container-table-body");
+		containerTableBody.innerHTML = "";
+
+		// Iterate through the containers in the JSON response
+		responseData.containers.forEach((container) => {
+			// Check if the container's team matches the selected team or if no team is selected
+			const isTeamMatch = selectedTeam === "" || container.team === selectedTeam || container.user === selectedTeam;
+			const isChallengeMatch = selectedChallenge === "" || container.challenge === selectedChallenge;
+
+			if (isTeamMatch && isChallengeMatch) {
+				// Create a new table row and populate it with container data
+				const newRow = document.createElement("tr");
+				if (typeof container.team === 'undefined') {
+					newRow.innerHTML = `
+						<td class="container_item" id="${container.container_id}">${container.container_id.slice(0, 12)}</td>
+						<td>${container.image}</td>
+						<td>${container.challenge}</td>
+						<td>${container.user}</td>
+						<td>${container.port}</td>
+						<td>${new Date(container.created * 1000).toLocaleString()}</td>
+						<td>${new Date(container.expires * 1000).toLocaleString()}</td>
+						<td><span class="badge badge-${container.is_running ? 'success' : 'danger'}">${container.is_running ? 'Yes' : 'No'}</span></td>
+						<td><button class="btn btn-danger containers-kill-btn" onclick="killContainer('${container.container_id}')"><i class="fa fa-times"></i></button></td>
+					`;
+				} else {
+					newRow.innerHTML = `
+						<td class="container_item" id="${container.container_id}">${container.container_id.slice(0, 12)}</td>
+						<td>${container.image}</td>
+						<td>${container.challenge}</td>
+						<td>${container.user}</td>
+						<td>${container.team}</td>
+						<td>${container.port}</td>
+						<td>${new Date(container.created * 1000).toLocaleString()}</td>
+						<td>${new Date(container.expires * 1000).toLocaleString()}</td>
+						<td><span class="badge badge-${container.is_running ? 'success' : 'danger'}">${container.is_running ? 'Yes' : 'No'}</span></td>
+						<td><button class="btn btn-danger containers-kill-btn" onclick="killContainer('${container.container_id}')"><i class="fa fa-times"></i></button></td>
+					`;
+				}
+			
+				// Append the new row to the table body
+				containerTableBody.appendChild(newRow);
+			}
+		});
+	}
+
+	function purgeContainers() {
+	var path = "/containers/api/purge";
+	var purgeButton = document.getElementById("container-purge-btn");
+
+	purgeButton.setAttribute("disabled", "disabled");
+
+	fetch(path, {
+		method: "POST",
+		headers: {
+		"Content-Type": "application/json",
+		"Accept": "application/json",
+		"CSRF-Token": init.csrfNonce,
+		},
+	})
+		.then((response) => response.json())
+		.then((data) => {
+		if (data.success == undefined) {
+			purgeButton.removeAttribute("disabled");
+		} else {
+			window.location.reload();
+		}
+		console.log(data);
+		})
+		.catch((error) => {
+		console.error("Error:", error);
+		});
+	}
+
+	function killContainer(container_id) {
+	var path = "/containers/api/kill";
+
+	fetch(path, {
+		method: "POST",
+		headers: {
+		"Content-Type": "application/json",
+		"Accept": "application/json",
+		"CSRF-Token": init.csrfNonce,
+		},
+		body: JSON.stringify({ container_id: container_id }),
+	})
+		.then((response) => response.json())
+		.then((data) => {
+		if (data.success == undefined) {
+			purgeButton.removeAttribute("disabled");
+		} else {
+			window.location.reload();
+		}
+		console.log(data);
+		})
+		.catch((error) => {
+		console.error("Error:", error);
+		});
+	}
+</script>
+{% endblock %}
