@@ -188,11 +188,13 @@ async function deploy() {
       searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"), config("REPLACE_FLAG"));
 
       // compress to zip
-      STATE.data.step = "compressing";
-      stateChanged = true;
-      const zip = new AdmZip();
-      zip.addLocalFolder(path.join(packaging_dir, file));
-      await zip.writeZipPromise(path.join(for_user_dir, `${file}.zip`));
+      if (Boolean(config("POST_FILE_FOR_USER"))) {
+        STATE.data.step = "compressing";
+        stateChanged = true;
+        const zip = new AdmZip();
+        zip.addLocalFolder(path.join(packaging_dir, file));
+        await zip.writeZipPromise(path.join(for_user_dir, `${file}.zip`));
+      }
 
       // build config
       STATE.data.detail = "uploading problems";
@@ -261,7 +263,7 @@ async function deploy() {
 
       STATE.data.step = "uploading for user file to ctfd";
       stateChanged = true;
-      if (!!(config("POST_FILE_FOR_USER") || true)) {
+      if (Boolean(config("POST_FILE_FOR_USER"))) {
         const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
         challenge_files.forEach((file) => {
           ctfdReq.delete(`/files/${file.id}`);
