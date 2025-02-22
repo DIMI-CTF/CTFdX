@@ -280,7 +280,12 @@ async function deploy() {
     }
   } catch (err) {
     console.log(err);
-    throw err;
+    const embed = new EmbedManager();
+    embed.setTitle("Error occurred");
+    embed.setDescription("During deploying.")
+    embed.addFields({ name: err.name, value: err.message }, { name: "Stack trace", value: err.stack });
+    embed.setColor("Red");
+    await discord_client.channels.cache.get(discord_channel).send({ embeds: [embed] });
   }
   STATE.state = "done";
   STATE.data.detail = null;
