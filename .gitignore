@@ -2,7 +2,7 @@
 /node_modules/
 problem_deployer/.env
 .DS_Store
-/repo/
-/packaging/
-/for_user/
+repo/
+packaging/
+for_user/
 repo.zip
