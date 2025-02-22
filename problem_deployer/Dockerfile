@@ -6,6 +6,9 @@ COPY . .
 
 RUN apk update
 RUN apk add docker
+RUN apk add tzdata
+RUN ln -s /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+
 RUN npm install --production
 
 ENTRYPOINT ["node", "problem_deployer.js"]
