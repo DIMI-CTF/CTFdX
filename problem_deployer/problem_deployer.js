@@ -209,7 +209,7 @@ async function deploy() {
         case "container":
           // docker build
           const debug1 = await new Promise((accept) => {
-            child_process.exec(`docker build . -t ${sha256_file}`, {cwd: config("DOCKER_LOCATION") ? path.join(problem_dir, file, config("DOCKER_LOCATION")) : path.join(problem_dir, file)}, accept);
+            child_process.exec(`docker build . -t "${sha256_file}"`, {cwd: config("DOCKER_LOCATION") ? path.join(problem_dir, file, config("DOCKER_LOCATION")) : path.join(problem_dir, file)}, accept);
           });
           if (debug1) throw new Error(`${debug1}`);
           register_config["type"] = "container";
