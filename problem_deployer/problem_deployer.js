@@ -396,7 +396,9 @@ webhookListener.set("/deploy", async (req) => {
 
 setInterval(async () => {
   if (stateChanged) {
-    await updateState();
+    try {
+      await updateState();
+    }catch (e) {}
     stateChanged = false;
   }
 }, 1000);
