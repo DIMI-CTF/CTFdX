@@ -17,6 +17,10 @@ REDACTED_FILE=
 # 쉼표로 구분
 SAFE_FLAG_FILE=
 
+# 플래그가 발견되면 오류내지 말고 [REDACTED]로 바꿀지 말지
+# true, false
+REPLACE_FLAG=
+
 # 유저에게 문제파일을 제공할지 기본적으로 true
 # true, false
 POST_FILE_FOR_USER=

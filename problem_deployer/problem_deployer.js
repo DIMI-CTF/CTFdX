@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const child_process = require('child_process');
 
 const base32 = require('base32');
@@ -82,7 +83,7 @@ const loadCfg = (path) => {
   };
 }
 
-const searchFlag = (dir, flag, safes = []) => {
+const searchFlag = (dir, flag, safes = [], replace) => {
   const safeFiles = Array.isArray(safes) ? safes : safes || [];
 
   const list = fs.readdirSync(dir);
@@ -101,7 +102,10 @@ const searchFlag = (dir, flag, safes = []) => {
       const normalized_decoded_string = strings.normalize("NFC");
       const normalized_flag = flag.normalize("NFC");
       if (normalized_decoded_string.indexOf(normalized_flag) !== -1) {
-        throw new Error("Unsafe hardcoded flag found in " + path.join(dir, item));
+        if (replace === "true")
+          fs.writeFileSync(path.join(dir, item), strings.replaceAll(flag, "[REDACTED]"));
+        else
+          throw new Error("Unsafe hardcoded flag found in " + path.join(dir, item));
       }
     }
   }
@@ -150,7 +154,7 @@ async function deploy() {
       STATE.data.target = targets[i];
       await updateState();
       const file = targets[i];
-      const base32_file = base32.encode(file);
+      const sha256_file = crypto.createHash('sha256').update(pw).digest('hex');
 
       // load configs
       STATE.data.step = "loading configuration";
@@ -178,7 +182,7 @@ async function deploy() {
       // flag searching
       STATE.data.step = "searching flags";
       await updateState();
-      searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"));
+      searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"), config("REPLACE_FLAG"));
 
       // compress to zip
       STATE.data.step = "compressing";
@@ -205,7 +209,7 @@ async function deploy() {
         case "container":
           // docker build
           const debug1 = await new Promise((accept) => {
-            child_process.exec(`docker build . -t ${base32_file}`, {cwd: config("DOCKER_LOCATION") ? path.join(problem_dir, file, config("DOCKER_LOCATION")) : path.join(problem_dir, file)}, accept);
+            child_process.exec(`docker build . -t ${sha256_file}`, {cwd: config("DOCKER_LOCATION") ? path.join(problem_dir, file, config("DOCKER_LOCATION")) : path.join(problem_dir, file)}, accept);
           });
           if (debug1) throw new Error(`${debug1}`);
           register_config["type"] = "container";
@@ -216,7 +220,7 @@ async function deploy() {
           register_config["ctype"] = config("DOCKER_CONNECT_TYPE") || "";
           register_config["port"] = config("DOCKER_PORT") || "";
           register_config["command"] = config("DOCKER_COMMAND") || "";
-          register_config["image"] = `${base32_file}:latest`;
+          register_config["image"] = `${sha256_file}:latest`;
           break;
         case "dynamic":
           register_config["type"] = "dynamic";
@@ -231,7 +235,7 @@ async function deploy() {
       STATE.data.step = "creating/patching problem to ctfd";
       await updateState();
       let challenge_id = "";
-      const exists = existing_problems.find((e) => e.tags.find((tag) => tag.value === `ctfdx_${base32_file}`));
+      const exists = existing_problems.find((e) => e.tags.find((tag) => tag.value === `ctfdx_${sha256_file}`));
       if (exists) {
         challenge_id = exists.id;
         await ctfdReq.patch(`/challenges/${challenge_id}`, register_config);
@@ -248,7 +252,7 @@ async function deploy() {
         }
       } else {
         challenge_id = (await ctfdReq.post("/challenges", register_config)).json.data.id;
-        await ctfdReq.post("/tags", {challenge: challenge_id, value: `ctfdx_${base32_file}`});
+        await ctfdReq.post("/tags", {challenge: challenge_id, value: `ctfdx_${sha256_file}`});
         await ctfdReq.post("/flags", {challenge: challenge_id, content: config("FLAG"), data: "", type: "static"});
       }
 
