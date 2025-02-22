@@ -11,11 +11,13 @@ const AdmZip = require('adm-zip');
 const FormData = require('form-data');
 
 const EmbedManager = require('./EmbedManager');
+const WebhookListener = require('./WebhookListener');
 const { RequestHelper } = require('webhtools');
 
 const STATE = { state: 'pending', data: null };
 let last_state = null;
-let discord_channel = process.env.DISCORD_CHANNEL;
+let discord_status_channel = process.env.DISCORD_STATUS_CHANNEL;
+let discord_log_channel = process.env.DISCORD_LOG_CHANNEL;
 let state_embed = null;
 
 const ctfdReq = new RequestHelper(`${process.env.CTFD_URI}/api/v1`);
@@ -28,10 +30,10 @@ if (process.env.GITHUB_TOKEN) githubReq.setBearerAuth(process.env.GITHUB_TOKEN);
 const discord_client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 const updateState = async () => {
-  if (!discord_channel) return;
+  if (!discord_status_channel) return;
   if (!state_embed || !state_embed.message || state_embed.message.deleted) {
     state_embed = new EmbedManager().setTitle("CTFdX deploy status");
-    const channel = discord_client.channels.cache.get(discord_channel);
+    const channel = discord_client.channels.cache.get(discord_status_channel);
 
     state_embed
       .setDescription(`Currently, ${STATE.state}`)
@@ -50,7 +52,7 @@ const updateState = async () => {
     try {
       await state_embed.edit();
     }catch(err) {
-      const channel = discord_client.channels.cache.get(discord_channel);
+      const channel = discord_client.channels.cache.get(discord_status_channel);
       state_embed.setMessage(await channel.send({ embeds: [state_embed] }));
     }
   }
@@ -291,7 +293,7 @@ async function deploy() {
     embed.setDescription("During deploying.")
     embed.addFields({ name: err.name, value: err.message }, { name: "Stack trace", value: err.stack });
     embed.setColor("Red");
-    await discord_client.channels.cache.get(discord_channel).send({ embeds: [embed] });
+    await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
   }
   STATE.state = "done";
   STATE.data.detail = null;
@@ -314,9 +316,13 @@ discord_client.on("interactionCreate", async (interaction) => {
     case "ping":
       await interaction.reply({ content: "pong!", flags: MessageFlags.Ephemeral });
       break;
-    case "set-channel":
-      discord_channel = interaction.channelId;
-      await interaction.reply({ content: `Successfully set the ctfdx channel as <#${discord_channel}>`, flags: MessageFlags.Ephemeral });
+    case "set-log-channel":
+      discord_status_channel = interaction.channelId;
+      await interaction.reply({ content: `Successfully set the ctfdx status channel as <#${discord_status_channel}>`, flags: MessageFlags.Ephemeral });
+      break;
+    case "set-status-channel":
+      discord_log_channel = interaction.channelId;
+      await interaction.reply({ content: `Successfully set the ctfdx log channel as <#${discord_log_channel}>`, flags: MessageFlags.Ephemeral });
       break;
     case "deploy":
       await interaction.reply({ content: "Deploying...", flags: MessageFlags.Ephemeral });
@@ -329,7 +335,7 @@ discord_client.on("interactionCreate", async (interaction) => {
         embed.setDescription("During manual deploying.")
         embed.addFields({ name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
         embed.setColor("Red");
-        await discord_client.channels.cache.get(discord_channel).send({ embeds: [embed] });
+        await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
       }
       break;
   }
@@ -343,8 +349,11 @@ discord_client.once("ready", (readyClient) => {
       .setName("ping")
       .setDescription("pong"),
     new SlashCommandBuilder()
-      .setName("set-channel")
-      .setDescription("Set default channel for ctfdx"),
+      .setName("set-status-channel")
+      .setDescription("Set default status channel for ctfdx"),
+    new SlashCommandBuilder()
+      .setName("set-log-channel")
+      .setDescription("Set default log channel for ctfdx"),
     new SlashCommandBuilder()
       .setName("deploy")
       .setDescription("Deploy problem to ctfd"),
@@ -358,6 +367,28 @@ discord_client.once("ready", (readyClient) => {
   });
 });
 discord_client.login(process.env.DISCORD_TOKEN);
+
+const webhookListener = new WebhookListener(3000);
+webhookListener.set("/deploy", async (req) => {
+  const embed = new EmbedManager();
+  embed.setTitle("Deploy triggered");
+  embed.setDescription("By webhook.");
+  embed.setFooter({ text: `Triggered at ${new Date()}` });
+  embed.setColor("Green");
+  await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
+  try {
+    await deploy();
+  }catch (e) {
+    console.error(e);
+    const embed = new EmbedManager();
+    embed.setTitle("Error occurred");
+    embed.setDescription("During auto deploying.")
+    embed.addFields({ name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
+    embed.setColor("Red");
+    await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
+  }
+  return 200;
+});
 
 // setInterval(async () => {
 //   if (STATE.state !== "running" || STATE.data)
