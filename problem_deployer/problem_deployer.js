@@ -280,6 +280,7 @@ async function deploy() {
     }
   } catch (err) {
     console.log(err);
+    throw err;
   }
   STATE.state = "done";
   STATE.data.detail = null;
