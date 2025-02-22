@@ -263,11 +263,11 @@ async function deploy() {
 
       STATE.data.step = "uploading for user file to ctfd";
       await updateState();
+      const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
+      challenge_files.forEach((file) => {
+        ctfdReq.delete(`/files/${file.id}`);
+      });
       if ((config("POST_FILE_FOR_USER") || "true") === "true") {
-        const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
-        challenge_files.forEach((file) => {
-          ctfdReq.delete(`/files/${file.id}`);
-        });
         const formData = new FormData();
         formData.append("type", "challenge");
         formData.append("challenge_id", challenge_id);
