@@ -114,6 +114,8 @@ const searchFlag = (dir, flag, safes = [], replace) => {
 }
 
 async function deploy() {
+  if (STATE.state === 'running') return;
+
   fs.rmSync("./repo", { recursive: true, force: true});
   fs.rmSync("./repo.zip", { recursive: true, force: true });
 
