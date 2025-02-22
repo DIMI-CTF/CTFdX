@@ -122,7 +122,7 @@ async function deploy() {
 
   STATE.state = 'running';
   STATE.data = { detail: "fetching problems" };
-  stateChanged = true;
+  await updateState();
   const repo_download_res = await githubReq.get("/zipball");
   if (!repo_download_res.ok) throw new Error("Cannot download repository.");
 
@@ -149,19 +149,19 @@ async function deploy() {
   const targets = fs.readdirSync(problem_dir);
 
   STATE.data = { detail: null, target: null, step: null };
-  stateChanged = true;
+  await updateState();
   const existing_problems = (await ctfdReq.get("/challenges?view=admin")).json.data;
   try {
     for (let i = 0; i < targets.length; i++) {
       STATE.data.detail = "packaging";
       STATE.data.target = targets[i];
-      stateChanged = true;
+      await updateState();
       const file = targets[i];
       const sha256_file = crypto.createHash('sha1').update(file).digest('hex');
 
       // load configs
       STATE.data.step = "loading configuration";
-      stateChanged = true;
+      await updateState();
       const config = loadCfg(path.join(problem_dir, file, ".ctfdx.cfg"));
       if (!config) continue;
 
@@ -169,7 +169,7 @@ async function deploy() {
 
       // replace REDACTED files
       STATE.data.step = "replacing redacted files";
-      stateChanged = true;
+      await updateState();
       const redacted = config("REDACTED_FILE");
       fs.rmSync(path.join(packaging_dir, file, ".ctfdx.cfg"), {recursive: true, force: true});
       if (redacted) {
@@ -184,13 +184,13 @@ async function deploy() {
 
       // flag searching
       STATE.data.step = "searching flags";
-      stateChanged = true;
+      await updateState();
       searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"), config("REPLACE_FLAG"));
 
       // compress to zip
       if ((config("POST_FILE_FOR_USER") || "true") === "true") {
         STATE.data.step = "compressing";
-        stateChanged = true;
+        await updateState();
         const zip = new AdmZip();
         zip.addLocalFolder(path.join(packaging_dir, file));
         await zip.writeZipPromise(path.join(for_user_dir, `${file}.zip`));
@@ -199,7 +199,7 @@ async function deploy() {
       // build config
       STATE.data.detail = "uploading problems";
       STATE.data.step = "building configuration";
-      stateChanged = true;
+      await updateState();
       const type = config("CHALLENGE_TYPE");
       const register_config = {};
       register_config["name"] = config("CHALLENGE_NAME") || file;
@@ -238,7 +238,7 @@ async function deploy() {
 
       // create or modify challenge
       STATE.data.step = "creating/patching problem to ctfd";
-      stateChanged = true;
+      await updateState();
       let challenge_id = "";
       const exists = existing_problems.find((e) => e.tags.find((tag) => tag.value === `ctfdx_${sha256_file}`));
       if (exists) {
@@ -262,7 +262,7 @@ async function deploy() {
       }
 
       STATE.data.step = "uploading for user file to ctfd";
-      stateChanged = true;
+      await updateState();
       if ((config("POST_FILE_FOR_USER") || "true") === "true") {
         const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
         challenge_files.forEach((file) => {
@@ -301,7 +301,7 @@ async function deploy() {
   STATE.data.detail = null;
   STATE.data.target = null;
   STATE.data.step = null;
-  stateChanged = true;
+  await updateState();
 
   // fs.rmSync("./repo", { recursive: true, force: true });
   // fs.rmSync("./packaging", { recursive: true, force: true });
@@ -309,7 +309,7 @@ async function deploy() {
   // fs.rmSync("./repo.zip", { recursive: true, force: true });
 
   STATE.state = "pending";
-  stateChanged = true;
+  await updateState();
 }
 
 discord_client.on("interactionCreate", async (interaction) => {
@@ -393,17 +393,5 @@ webhookListener.set("/deploy", async (req) => {
   }
   return 200;
 });
-
-let previousRequestEnded = true;
-setInterval(async () => {
-  if (stateChanged && previousRequestEnded) {
-    try {
-      previousRequestEnded = false;
-      await updateState();
-      previousRequestEnded = true;
-    }catch (e) {}
-    stateChanged = false;
-  }
-}, 1000);
 
 // deploy();
