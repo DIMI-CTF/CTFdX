@@ -291,7 +291,7 @@ async function deploy() {
     const embed = new EmbedManager();
     embed.setTitle("Error occurred");
     embed.setDescription("During deploying.")
-    embed.addFields({ name: err.name, value: err.message }, { name: "Stack trace", value: err.stack });
+    embed.addFields({ name: "state", value: JSON.stringify(STATE) }, { name: err.name, value: err.message }, { name: "Stack trace", value: err.stack });
     embed.setColor("Red");
     await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
   }
@@ -333,7 +333,7 @@ discord_client.on("interactionCreate", async (interaction) => {
         const embed = new EmbedManager();
         embed.setTitle("Error occurred");
         embed.setDescription("During manual deploying.")
-        embed.addFields({ name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
+        embed.addFields({ name: "state", value: JSON.stringify(STATE) }, { name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
         embed.setColor("Red");
         await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
       }
@@ -383,7 +383,7 @@ webhookListener.set("/deploy", async (req) => {
     const embed = new EmbedManager();
     embed.setTitle("Error occurred");
     embed.setDescription("During auto deploying.")
-    embed.addFields({ name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
+    embed.addFields({ name: "state", value: JSON.stringify(STATE) }, { name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
     embed.setColor("Red");
     await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
   }
