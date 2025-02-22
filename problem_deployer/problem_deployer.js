@@ -42,6 +42,7 @@ const updateState = async () => {
         { name: "For", value: STATE.data.target || "null", inline: true },
         { name: "Step", value: STATE.data.step || "null", inline: true },
       )
+      .setFooter({ text: `Issued at ${new Date()}` })
       .setColor("Random");
     state_embed.setMessage(await channel.send({ embeds: [state_embed] }));
   }else {
@@ -49,6 +50,7 @@ const updateState = async () => {
     state_embed.changeField("Working on", STATE.data.detail || "null", true);
     state_embed.changeField("For", STATE.data.target || "null", true);
     state_embed.changeField("Step", STATE.data.step || "null", true);
+    state_embed.setFooter({ text: `Issued at ${new Date()}` });
     try {
       await state_embed.edit();
     }catch(err) {
@@ -292,6 +294,7 @@ async function deploy() {
     embed.setTitle("Error occurred");
     embed.setDescription("During deploying.")
     embed.addFields({ name: "state", value: JSON.stringify(STATE) }, { name: err.name, value: err.message }, { name: "Stack trace", value: err.stack });
+    embed.setFooter({ text: `Triggered at ${new Date()}` });
     embed.setColor("Red");
     await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
   }
@@ -334,6 +337,7 @@ discord_client.on("interactionCreate", async (interaction) => {
         embed.setTitle("Error occurred");
         embed.setDescription("During manual deploying.")
         embed.addFields({ name: "state", value: JSON.stringify(STATE) }, { name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
+        embed.setFooter({ text: `Triggered at ${new Date()}` });
         embed.setColor("Red");
         await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
       }
@@ -384,6 +388,7 @@ webhookListener.set("/deploy", async (req) => {
     embed.setTitle("Error occurred");
     embed.setDescription("During auto deploying.")
     embed.addFields({ name: "state", value: JSON.stringify(STATE) }, { name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
+    embed.setFooter({ text: `Triggered at ${new Date()}` });
     embed.setColor("Red");
     await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
   }
