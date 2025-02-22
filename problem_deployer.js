@@ -307,9 +307,17 @@ discord_client.on("interactionCreate", async (interaction) => {
       await interaction.reply({ content: `Successfully set the ctfdx channel as <#${discord_channel}>`, flags: MessageFlags.Ephemeral });
       break;
     case "deploy":
-      console.log("asdf");
       await interaction.reply({ content: "Deploying...", flags: MessageFlags.Ephemeral });
-      deploy();
+      try {
+        deploy();
+      }catch (e) {
+        const embed = new EmbedManager();
+        embed.setTitle("Error occurred");
+        embed.setDescription("During manual deploying.")
+        embed.addFields({ name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
+        embed.setColor("Red");
+        await discord_client.channels.cache.get(discord_channel).send({ embeds: [embed] });
+      }
       break;
   }
 });
