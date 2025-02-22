@@ -279,7 +279,7 @@ async function deploy() {
       STATE.data.step = null;
     }
   } catch (err) {
-
+    console.log(err);
   }
   STATE.state = "done";
   STATE.data.detail = null;
