@@ -5,8 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const child_process = require('child_process');
 
-const base32 = require('base32');
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { Client, GatewayIntentBits, SlashCommandBuilder, MessageFlags } = require('discord.js');
 const AdmZip = require('adm-zip');
 const FormData = require('form-data');
 
@@ -15,7 +14,7 @@ const WebhookListener = require('./WebhookListener');
 const { RequestHelper } = require('webhtools');
 
 const STATE = { state: 'pending', data: null };
-let last_state = null;
+let stateChanged = false;
 let discord_status_channel = process.env.DISCORD_STATUS_CHANNEL;
 let discord_log_channel = process.env.DISCORD_LOG_CHANNEL;
 let state_embed = null;
@@ -58,8 +57,6 @@ const updateState = async () => {
       state_embed.setMessage(await channel.send({ embeds: [state_embed] }));
     }
   }
-
-  last_state = STATE;
 }
 
 const loadCfg = (path) => {
@@ -125,7 +122,7 @@ async function deploy() {
 
   STATE.state = 'running';
   STATE.data = { detail: "fetching problems" };
-  await updateState();
+  stateChanged = true;
   const repo_download_res = await githubReq.get("/zipball");
   if (!repo_download_res.ok) throw new Error("Cannot download repository.");
 
@@ -152,19 +149,19 @@ async function deploy() {
   const targets = fs.readdirSync(problem_dir);
 
   STATE.data = { detail: null, target: null, step: null };
-  await updateState();
+  stateChanged = true;
   const existing_problems = (await ctfdReq.get("/challenges?view=admin")).json.data;
   try {
     for (let i = 0; i < targets.length; i++) {
       STATE.data.detail = "packaging";
       STATE.data.target = targets[i];
-      await updateState();
+      stateChanged = true;
       const file = targets[i];
       const sha256_file = crypto.createHash('sha1').update(file).digest('hex');
 
       // load configs
       STATE.data.step = "loading configuration";
-      await updateState();
+      stateChanged = true;
       const config = loadCfg(path.join(problem_dir, file, ".ctfdx.cfg"));
       if (!config) continue;
 
@@ -172,7 +169,7 @@ async function deploy() {
 
       // replace REDACTED files
       STATE.data.step = "replacing redacted files";
-      await updateState();
+      stateChanged = true;
       const redacted = config("REDACTED_FILE");
       fs.rmSync(path.join(packaging_dir, file, ".ctfdx.cfg"), {recursive: true, force: true});
       if (redacted) {
@@ -187,12 +184,12 @@ async function deploy() {
 
       // flag searching
       STATE.data.step = "searching flags";
-      await updateState();
+      stateChanged = true;
       searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"), config("REPLACE_FLAG"));
 
       // compress to zip
       STATE.data.step = "compressing";
-      await updateState();
+      stateChanged = true;
       const zip = new AdmZip();
       zip.addLocalFolder(path.join(packaging_dir, file));
       await zip.writeZipPromise(path.join(for_user_dir, `${file}.zip`));
@@ -200,7 +197,7 @@ async function deploy() {
       // build config
       STATE.data.detail = "uploading problems";
       STATE.data.step = "building configuration";
-      await updateState();
+      stateChanged = true;
       const type = config("CHALLENGE_TYPE");
       const register_config = {};
       register_config["name"] = config("CHALLENGE_NAME") || file;
@@ -239,7 +236,7 @@ async function deploy() {
 
       // create or modify challenge
       STATE.data.step = "creating/patching problem to ctfd";
-      await updateState();
+      stateChanged = true;
       let challenge_id = "";
       const exists = existing_problems.find((e) => e.tags.find((tag) => tag.value === `ctfdx_${sha256_file}`));
       if (exists) {
@@ -263,7 +260,7 @@ async function deploy() {
       }
 
       STATE.data.step = "uploading for user file to ctfd";
-      await updateState();
+      stateChanged = true;
       if (!!(config("POST_FILE_FOR_USER") || true)) {
         const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
         challenge_files.forEach((file) => {
@@ -302,7 +299,7 @@ async function deploy() {
   STATE.data.detail = null;
   STATE.data.target = null;
   STATE.data.step = null;
-  await updateState();
+  stateChanged = true;
 
   // fs.rmSync("./repo", { recursive: true, force: true });
   // fs.rmSync("./packaging", { recursive: true, force: true });
@@ -310,7 +307,7 @@ async function deploy() {
   // fs.rmSync("./repo.zip", { recursive: true, force: true });
 
   STATE.state = "pending";
-  await updateState();
+  stateChanged = true;
 }
 
 discord_client.on("interactionCreate", async (interaction) => {
@@ -395,9 +392,11 @@ webhookListener.set("/deploy", async (req) => {
   return 200;
 });
 
-// setInterval(async () => {
-//   if (STATE.state !== "running" || STATE.data)
-//     await updateState();
-// }, 1000);
+setInterval(async () => {
+  if (stateChanged) {
+    await updateState();
+    stateChanged = false;
+  }
+}, 1000);
 
 // deploy();
