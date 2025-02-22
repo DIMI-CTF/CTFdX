@@ -154,7 +154,7 @@ async function deploy() {
       STATE.data.target = targets[i];
       await updateState();
       const file = targets[i];
-      const sha256_file = crypto.createHash('sha256').update(file).digest('hex');
+      const sha256_file = crypto.createHash('sha1').update(file).digest('hex');
 
       // load configs
       STATE.data.step = "loading configuration";
