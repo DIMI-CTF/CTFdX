@@ -5,7 +5,7 @@ WORKDIR /app
 COPY . .
 
 RUN apk update
-RUN apk install docker.io
+RUN apk add docker
 RUN npm install --production
 
 ENTRYPOINT ["node", "problem_deployer.js"]
