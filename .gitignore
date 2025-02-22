@@ -1,6 +1,6 @@
 /.idea/
 /node_modules/
-.env
+problem_deployer/.env
 .DS_Store
 /repo/
 /packaging/

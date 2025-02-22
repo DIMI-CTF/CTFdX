@@ -14,7 +14,7 @@ const { RequestHelper } = require('webhtools');
 
 const STATE = { state: 'pending', data: null };
 let last_state = null;
-let discord_channel = null;
+let discord_channel = process.env.DISCORD_CHANNEL;
 let state_embed = null;
 
 const ctfdReq = new RequestHelper(`${process.env.CTFD_URI}/api/v1`);
@@ -309,8 +309,9 @@ discord_client.on("interactionCreate", async (interaction) => {
     case "deploy":
       await interaction.reply({ content: "Deploying...", flags: MessageFlags.Ephemeral });
       try {
-        deploy();
+        await deploy();
       }catch (e) {
+        console.error(e);
         const embed = new EmbedManager();
         embed.setTitle("Error occurred");
         embed.setDescription("During manual deploying.")
