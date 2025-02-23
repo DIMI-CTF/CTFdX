@@ -383,7 +383,7 @@ webhookListener.set("/deploy", async (req) => {
   const embed = new EmbedManager();
   embed.setTitle("Deploy triggered");
   embed.setURL(body.compare);
-  embed.setAuthor({ name: body.sender.name, iconURL: body.sender.avatar_url, url: body.sender.url });
+  embed.setAuthor({ name: body.sender.login, iconURL: body.sender.avatar_url, url: body.sender.url });
   embed.setDescription("By github webhook.");
   embed.addFields(
     ...body.commits.map((c) => { return {name: c.message, value: c.url } })
