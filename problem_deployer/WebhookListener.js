@@ -15,18 +15,27 @@ module.exports = class WebhookListener {
   }
 
   onRequest(req, res) {
-    const parsedUrl = url.parse(req.url);
-    const path = parsedUrl.path;
+    const buff = [];
+    req.on('data', chunk => {
+      buff.push(chunk);
+    });
 
-    let status;
-    if (this.listeners[path])
-      status = this.listeners[path](req);
+    req.on("end", () => {
+      const parsedUrl = url.parse(req.url);
+      const path = parsedUrl.path;
 
-    if (isNaN(status))
-      res.writeHead(200);
-    else
-      res.writeHead(status);
-    res.end();
+      const withBody = { ...req, body: Buffer.concat(buff) };
+
+      let status;
+      if (this.listeners[path])
+        status = this.listeners[path](withBody);
+
+      if (isNaN(status))
+        res.writeHead(200);
+      else
+        res.writeHead(status);
+      res.end();
+    });
   }
 
   set(k, v) {

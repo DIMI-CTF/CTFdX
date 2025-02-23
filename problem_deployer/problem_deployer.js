@@ -339,6 +339,11 @@ discord_client.on("interactionCreate", async (interaction) => {
         embed.setFooter({ text: `Triggered at ${new Date()}` });
         embed.setColor("Red");
         await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
+
+        STATE.state = "error";
+        STATE.data.detail = "Error occurred during deploying. Waiting for next deploy.";
+        STATE.data.target = null;
+        STATE.data.step = null;
       }
       break;
   }
@@ -373,9 +378,16 @@ discord_client.login(process.env.DISCORD_TOKEN);
 
 const webhookListener = new WebhookListener(3000);
 webhookListener.set("/deploy", async (req) => {
+  const body = JSON.parse(req.body.toString().replace("payload=", ""));
+
   const embed = new EmbedManager();
   embed.setTitle("Deploy triggered");
-  embed.setDescription("By webhook.");
+  embed.setURL(body.compare);
+  embed.setAuthor({ name: body.sender.name, iconURL: body.sender.avatar_url, url: body.sender.url });
+  embed.setDescription("By github webhook.");
+  embed.addFields(
+    ...body.commits.map((c) => { return {name: c.message, value: c.url } })
+  );
   embed.setFooter({ text: `Triggered at ${new Date()}` });
   embed.setColor("Green");
   await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
@@ -383,6 +395,7 @@ webhookListener.set("/deploy", async (req) => {
     await deploy();
   }catch (e) {
     console.error(e);
+
     const embed = new EmbedManager();
     embed.setTitle("Error occurred");
     embed.setDescription("During auto deploying.")
@@ -390,6 +403,11 @@ webhookListener.set("/deploy", async (req) => {
     embed.setFooter({ text: `Triggered at ${new Date()}` });
     embed.setColor("Red");
     await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
+
+    STATE.state = "error";
+    STATE.data.detail = "Error occurred during deploying. Waiting for next deploy.";
+    STATE.data.target = null;
+    STATE.data.step = null;
   }
   return 200;
 });
