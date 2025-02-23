@@ -378,7 +378,7 @@ discord_client.login(process.env.DISCORD_TOKEN);
 
 const webhookListener = new WebhookListener(3000);
 webhookListener.set("/deploy", async (req) => {
-  const body = JSON.parse(req.body.toString().replace("payload=", ""));
+  const body = JSON.parse(decodeURIComponent(req.body.toString()).replace("payload=", ""));
 
   const embed = new EmbedManager();
   embed.setTitle("Deploy triggered");
