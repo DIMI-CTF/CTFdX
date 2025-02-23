@@ -385,7 +385,7 @@ webhookListener.set("/deploy", async (req) => {
   embed.setURL(body.compare);
   embed.setAuthor({ name: body.sender.login, iconURL: body.sender.avatar_url, url: body.sender.url });
   embed.setDescription("By github webhook.");
-  embed.addFields({ name: "commits", value: body.commits.map((c) => `${c.message} ${c.url}`).join("\n")});
+  embed.addFields({ name: "commits", value: body.commits.map((c) => `[${(c.message.replace(/\+/g, ' '))}](${c.url})`).join("\n")});
   embed.setFooter({ text: `Triggered at ${new Date()}` });
   embed.setColor("Green");
   await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
