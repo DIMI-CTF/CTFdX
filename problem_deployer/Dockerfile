@@ -4,9 +4,9 @@ WORKDIR /app
 
 COPY . .
 
-RUN apk update
-RUN apk add docker
-RUN apk add tzdata
+RUN apt-get update
+RUN apt-get install docker
+RUN apt-get install tzdata
 RUN ln -s /usr/share/zoneinfo/Asia/Seoul /etc/localtime
 
 RUN npm install --production
