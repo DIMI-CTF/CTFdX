@@ -19,6 +19,6 @@
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.7",
     "form-data": "^4.0.1",
-    "webhtools": "^0.2.3"
+    "webhtools": "^0.2.4"
   }
 }
