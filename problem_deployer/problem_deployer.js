@@ -123,11 +123,8 @@ async function deploy() {
   STATE.state = 'running';
   STATE.data = { detail: "fetching problems" };
   await updateState();
-  const repo_download_res = await githubReq.get("/zipball");
+  const repo_download_res = await githubReq.get("/zipball", null, path.join(__dirname, "./repo.zip"));
   if (!repo_download_res.ok) throw new Error("Cannot download repository.");
-
-  const file = path.join(__dirname, "./repo.zip");
-  fs.writeFileSync(file, repo_download_res.bytes);
 
   const unzip = new AdmZip(path.join(__dirname, "./repo.zip"));
   fs.mkdirSync(path.join(__dirname, "repo"));
