@@ -140,7 +140,7 @@ async function deploy() {
   fs.readdirSync(path.join(__dirname, `repo/${name}`)).forEach((e) => { fs.cpSync(path.join(__dirname, `repo/${name}/${e}`), path.join(__dirname, `repo/${e}`), { recursive: true, force: true }); });
   fs.readdirSync(path.join(__dirname, `repo`)).filter(e => e.startsWith(".")).forEach((e) => { fs.rmSync(path.join(__dirname, `repo/${e}`), { recursive: true, force: true }); });
   fs.rmSync(path.join(__dirname, `repo/${name}`), { recursive: true, force: true });
-  console.timeEnd("Prepare Problem");
+  console.timeEnd("Prepare problem");
 
   const problem_dir = path.join(__dirname, "repo");
   const packaging_dir = path.join(__dirname, "packaging");
