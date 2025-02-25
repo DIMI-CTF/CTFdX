@@ -329,7 +329,7 @@ async function deploy(manual) {
   if (without.length > 0) {
     embed.addFields({ name: "except", value: without.join(", ") });
   }
-  if (manual) embed.setAuthor({ name: manual.globalName, iconURL: manual.avatarURL });
+  if (manual) embed.setAuthor({ name: manual.globalName, iconURL: manual.avatarURL() });
   embed.setFooter({ text: `Issued at ${new Date()}` });
   embed.setColor("Green");
   await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
