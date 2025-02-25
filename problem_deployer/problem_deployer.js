@@ -123,17 +123,24 @@ async function deploy() {
   STATE.state = 'running';
   STATE.data = { detail: "fetching problems" };
   await updateState();
+
+  console.time("Fetching problem");
   const repo_download_res = await githubReq.get("/zipball", null, path.join(__dirname, "./repo.zip"));
   if (!repo_download_res.ok) throw new Error("Cannot download repository.");
+  console.timeEnd("Fetching problem");
 
+  console.time("Unziping problem");
   const unzip = new AdmZip(path.join(__dirname, "./repo.zip"));
   fs.mkdirSync(path.join(__dirname, "repo"));
   unzip.extractAllTo(path.join(__dirname, "repo"), true);
+  console.timeEnd("Unziping problem");
 
+  console.time("Prepare problem");
   const name = fs.readdirSync(path.join(__dirname, "repo"))[0];
   fs.readdirSync(path.join(__dirname, `repo/${name}`)).forEach((e) => { fs.cpSync(path.join(__dirname, `repo/${name}/${e}`), path.join(__dirname, `repo/${e}`), { recursive: true, force: true }); });
   fs.readdirSync(path.join(__dirname, `repo`)).filter(e => e.startsWith(".")).forEach((e) => { fs.rmSync(path.join(__dirname, `repo/${e}`), { recursive: true, force: true }); });
   fs.rmSync(path.join(__dirname, `repo/${name}`), { recursive: true, force: true });
+  console.timeEnd("Prepare Problem");
 
   const problem_dir = path.join(__dirname, "repo");
   const packaging_dir = path.join(__dirname, "packaging");
@@ -159,14 +166,21 @@ async function deploy() {
       // load configs
       STATE.data.step = "loading configuration";
       await updateState();
+
+      console.time("Loading Config");
       const config = loadCfg(path.join(problem_dir, file, ".ctfdx.cfg"));
       if (!config) continue;
+      console.timeEnd("Loading Config");
 
+      console.time("Coping for packaging");
       fs.cpSync(path.join(problem_dir, file), path.join(packaging_dir, file), {recursive: true, force: true});
+      console.timeEnd("Coping for packaging");
 
       // replace REDACTED files
       STATE.data.step = "replacing redacted files";
       await updateState();
+
+      console.time("Replacing redacted files");
       const redacted = config("REDACTED_FILE");
       fs.rmSync(path.join(packaging_dir, file, ".ctfdx.cfg"), {recursive: true, force: true});
       if (redacted) {
@@ -178,25 +192,33 @@ async function deploy() {
           }
         }
       }
+      console.timeEnd("Replacing redacted files");
 
       // flag searching
       STATE.data.step = "searching flags";
       await updateState();
+      console.time("Searching flags");
       searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"), config("REPLACE_FLAG"));
+      console.timeEnd("Searching flags");
 
       // compress to zip
       if ((config("POST_FILE_FOR_USER") || "true") === "true") {
         STATE.data.step = "compressing";
         await updateState();
+
+        console.time("Compressing");
         const zip = new AdmZip();
         zip.addLocalFolder(path.join(packaging_dir, file));
         await zip.writeZipPromise(path.join(for_user_dir, `${file}.zip`));
+        console.timeEnd("Compressing");
       }
 
       // build config
       STATE.data.detail = "uploading problems";
       STATE.data.step = "building configuration";
       await updateState();
+
+      console.time("Building Config");
       const type = config("CHALLENGE_TYPE");
       const register_config = {};
       register_config["name"] = config("CHALLENGE_NAME") || file;
@@ -210,9 +232,11 @@ async function deploy() {
           break;
         case "container":
           // docker build
+          console.time("Docker build");
           const debug1 = await new Promise((accept) => {
             child_process.exec(`docker build . -t "${sha256_file}"`, {cwd: config("DOCKER_LOCATION") ? path.join(problem_dir, file, config("DOCKER_LOCATION")) : path.join(problem_dir, file)}, accept);
           });
+          console.timeEnd("Docker build");
           if (debug1) throw new Error(`${debug1}`);
           register_config["type"] = "container";
           register_config["connection_info"] = "Container";
@@ -232,10 +256,13 @@ async function deploy() {
           register_config["function"] = config("DECAY_FUNCTION") || "";
           break;
       }
+      console.timeEnd("Building Config");
 
       // create or modify challenge
       STATE.data.step = "creating/patching problem to ctfd";
       await updateState();
+
+      console.time("Problem to ctfd");
       let challenge_id = "";
       const exists = existing_problems.find((e) => e.tags.find((tag) => tag.value === `ctfdx_${sha256_file}`));
       if (exists) {
@@ -257,9 +284,12 @@ async function deploy() {
         await ctfdReq.post("/tags", {challenge: challenge_id, value: `ctfdx_${sha256_file}`});
         await ctfdReq.post("/flags", {challenge: challenge_id, content: config("FLAG"), data: "", type: "static"});
       }
+      console.timeEnd("Problem to ctfd");
 
       STATE.data.step = "uploading for user file to ctfd";
       await updateState();
+
+      console.time("Upload for user");
       const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
       challenge_files.forEach((file) => {
         ctfdReq.delete(`/files/${file.id}`);
@@ -281,6 +311,7 @@ async function deploy() {
           path: "/api/v1/files"
         });
       }
+      console.timeEnd("Upload for user");
 
       STATE.data.step = null;
     }
