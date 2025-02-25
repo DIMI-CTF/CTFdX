@@ -116,6 +116,7 @@ const searchFlag = (dir, flag, safes = [], replace) => {
 
 async function deploy() {
   if (STATE.state === 'running') return;
+  const start = Date.now();
 
   fs.rmSync("./repo", { recursive: true, force: true});
   fs.rmSync("./repo.zip", { recursive: true, force: true });
@@ -152,7 +153,9 @@ async function deploy() {
   const targets = fs.readdirSync(problem_dir);
 
   STATE.data = { detail: null, target: null, step: null };
-    const existing_problems = (await ctfdReq.get("/challenges?view=admin")).json.data;
+  let deploy_count = 0;
+  let without = [];
+  const existing_problems = (await ctfdReq.get("/challenges?view=admin")).json.data;
   try {
     for (let i = 0; i < targets.length; i++) {
       STATE.data.detail = "packaging";
@@ -165,7 +168,7 @@ async function deploy() {
       
       console.time("Loading Config");
       const config = loadCfg(path.join(problem_dir, file, ".ctfdx.cfg"));
-      if (!config) continue;
+      if (!config) { without.push(STATE.data.target); continue; }
       console.timeEnd("Loading Config");
 
       console.time("Coping for packaging");
@@ -304,6 +307,7 @@ async function deploy() {
       console.timeEnd("Upload for user");
 
       STATE.data.step = null;
+      deploy_count++;
     }
   } catch (err) {
     console.log(err);
@@ -319,6 +323,15 @@ async function deploy() {
   STATE.data.detail = null;
   STATE.data.target = null;
   STATE.data.step = null;
+  const embed = new EmbedManager();
+  embed.setTitle("Deploy Success");
+  embed.setDescription(`Successfully deployed ${deploy_count} problems in ${(Date.now() - start)/1000}s`)
+  if (without.length > 0) {
+    embed.addFields({ name: "except", value: without.join(", ") });
+  }
+  embed.setFooter({ text: `Issued at ${new Date()}` });
+  embed.setColor("Green");
+  await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
   
   // fs.rmSync("./repo", { recursive: true, force: true });
   // fs.rmSync("./packaging", { recursive: true, force: true });
