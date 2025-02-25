@@ -13,7 +13,7 @@ const EmbedManager = require('./EmbedManager');
 const WebhookListener = require('./WebhookListener');
 const { RequestHelper } = require('webhtools');
 
-const STATE = { state: 'pending', data: null };
+const STATE = { state: 'pending', data: { detail: null, target: null, step: null } };
 let stateChanged = false;
 let discord_status_channel = process.env.DISCORD_STATUS_CHANNEL;
 let discord_log_channel = process.env.DISCORD_LOG_CHANNEL;
@@ -122,8 +122,7 @@ async function deploy() {
 
   STATE.state = 'running';
   STATE.data = { detail: "fetching problems" };
-  await updateState();
-
+  
   console.time("Fetching problem");
   const repo_download_res = await githubReq.get("/zipball", null, path.join(__dirname, "./repo.zip"));
   if (!repo_download_res.ok) throw new Error("Cannot download repository.");
@@ -153,20 +152,17 @@ async function deploy() {
   const targets = fs.readdirSync(problem_dir);
 
   STATE.data = { detail: null, target: null, step: null };
-  await updateState();
-  const existing_problems = (await ctfdReq.get("/challenges?view=admin")).json.data;
+    const existing_problems = (await ctfdReq.get("/challenges?view=admin")).json.data;
   try {
     for (let i = 0; i < targets.length; i++) {
       STATE.data.detail = "packaging";
       STATE.data.target = targets[i];
-      await updateState();
-      const file = targets[i];
+            const file = targets[i];
       const sha256_file = crypto.createHash('sha1').update(file).digest('hex');
 
       // load configs
       STATE.data.step = "loading configuration";
-      await updateState();
-
+      
       console.time("Loading Config");
       const config = loadCfg(path.join(problem_dir, file, ".ctfdx.cfg"));
       if (!config) continue;
@@ -178,8 +174,7 @@ async function deploy() {
 
       // replace REDACTED files
       STATE.data.step = "replacing redacted files";
-      await updateState();
-
+      
       console.time("Replacing redacted files");
       const redacted = config("REDACTED_FILE");
       fs.rmSync(path.join(packaging_dir, file, ".ctfdx.cfg"), {recursive: true, force: true});
@@ -196,16 +191,14 @@ async function deploy() {
 
       // flag searching
       STATE.data.step = "searching flags";
-      await updateState();
-      console.time("Searching flags");
+            console.time("Searching flags");
       searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"), config("REPLACE_FLAG"));
       console.timeEnd("Searching flags");
 
       // compress to zip
       if ((config("POST_FILE_FOR_USER") || "true") === "true") {
         STATE.data.step = "compressing";
-        await updateState();
-
+        
         console.time("Compressing");
         const zip = new AdmZip();
         zip.addLocalFolder(path.join(packaging_dir, file));
@@ -216,8 +209,7 @@ async function deploy() {
       // build config
       STATE.data.detail = "uploading problems";
       STATE.data.step = "building configuration";
-      await updateState();
-
+      
       console.time("Building Config");
       const type = config("CHALLENGE_TYPE");
       const register_config = {};
@@ -260,8 +252,7 @@ async function deploy() {
 
       // create or modify challenge
       STATE.data.step = "creating/patching problem to ctfd";
-      await updateState();
-
+      
       console.time("Problem to ctfd");
       let challenge_id = "";
       const exists = existing_problems.find((e) => e.tags.find((tag) => tag.value === `ctfdx_${sha256_file}`));
@@ -287,8 +278,7 @@ async function deploy() {
       console.timeEnd("Problem to ctfd");
 
       STATE.data.step = "uploading for user file to ctfd";
-      await updateState();
-
+      
       console.time("Upload for user");
       const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
       challenge_files.forEach((file) => {
@@ -329,16 +319,14 @@ async function deploy() {
   STATE.data.detail = null;
   STATE.data.target = null;
   STATE.data.step = null;
-  await updateState();
-
+  
   // fs.rmSync("./repo", { recursive: true, force: true });
   // fs.rmSync("./packaging", { recursive: true, force: true });
   // fs.rmSync("./for_user", { recursive: true, force: true });
   // fs.rmSync("./repo.zip", { recursive: true, force: true });
 
   STATE.state = "pending";
-  await updateState();
-}
+  }
 
 discord_client.on("interactionCreate", async (interaction) => {
   console.log(interaction.commandName);
@@ -401,6 +389,10 @@ discord_client.once("ready", (readyClient) => {
     await discord_client.application.commands.create(command);
     // discord_client.guilds.cache.get("914879556303847434").commands.create(command);
   });
+
+  setInterval(() => {
+    updateState();
+  }, 1000);
 });
 discord_client.login(process.env.DISCORD_TOKEN);
 
