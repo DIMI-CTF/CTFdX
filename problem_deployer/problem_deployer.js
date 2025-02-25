@@ -329,6 +329,7 @@ async function deploy(manual) {
   if (without.length > 0) {
     embed.addFields({ name: "except", value: without.join(", ") });
   }
+  if (manual) embed.setAuthor({ name: manual.globalName, iconURL: manual.avatarURL });
   embed.setFooter({ text: `Issued at ${new Date()}` });
   embed.setColor("Green");
   await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
@@ -358,7 +359,7 @@ discord_client.on("interactionCreate", async (interaction) => {
     case "deploy":
       await interaction.reply({ content: "Deploying...", flags: MessageFlags.Ephemeral });
       try {
-        await deploy(true);
+        await deploy(interaction.user);
       }catch (e) {
         console.error(e);
         const embed = new EmbedManager();
