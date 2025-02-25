@@ -114,7 +114,7 @@ const searchFlag = (dir, flag, safes = [], replace) => {
   return true;
 }
 
-async function deploy() {
+async function deploy(manual) {
   if (STATE.state === 'running') return;
   const start = Date.now();
 
@@ -324,7 +324,7 @@ async function deploy() {
   STATE.data.target = null;
   STATE.data.step = null;
   const embed = new EmbedManager();
-  embed.setTitle("Deploy Success");
+  embed.setTitle(`${manual ? "Manual" : "Automatic"} Deploy Success`);
   embed.setDescription(`Successfully deployed ${deploy_count} problems in ${(Date.now() - start)/1000}s`)
   if (without.length > 0) {
     embed.addFields({ name: "except", value: without.join(", ") });
@@ -358,7 +358,7 @@ discord_client.on("interactionCreate", async (interaction) => {
     case "deploy":
       await interaction.reply({ content: "Deploying...", flags: MessageFlags.Ephemeral });
       try {
-        await deploy();
+        await deploy(true);
       }catch (e) {
         console.error(e);
         const embed = new EmbedManager();
