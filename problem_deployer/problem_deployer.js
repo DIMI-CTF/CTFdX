@@ -406,7 +406,7 @@ discord_client.once("ready", (readyClient) => {
 
   setInterval(() => {
     updateState();
-  }, 1000);
+  }, 2000);
 });
 discord_client.login(process.env.DISCORD_TOKEN);
 
