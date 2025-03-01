@@ -29,34 +29,7 @@ if (process.env.GITHUB_TOKEN) githubReq.setBearerAuth(process.env.GITHUB_TOKEN);
 const discord_client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 const updateState = async () => {
-  if (!discord_status_channel) return;
-  if (!state_embed || !state_embed.message || state_embed.message.deleted) {
-    state_embed = new EmbedManager().setTitle("CTFdX deploy status");
-    const channel = discord_client.channels.cache.get(discord_status_channel);
 
-    state_embed
-      .setDescription(`Currently, ${STATE.state}`)
-      .addFields(
-    { name: "Working on", value: STATE.data.detail || "null", inline: true },
-        { name: "For", value: STATE.data.target || "null", inline: true },
-        { name: "Step", value: STATE.data.step || "null", inline: true },
-      )
-      .setFooter({ text: `Issued at ${new Date()}` })
-      .setColor("Random");
-    state_embed.setMessage(await channel.send({ embeds: [state_embed] }));
-  }else {
-    state_embed.setDescription(`Currently, ${STATE.state}`)
-    state_embed.changeField("Working on", STATE.data.detail || "null", true);
-    state_embed.changeField("For", STATE.data.target || "null", true);
-    state_embed.changeField("Step", STATE.data.step || "null", true);
-    state_embed.setFooter({ text: `Issued at ${new Date()}` });
-    try {
-      await state_embed.edit();
-    }catch(err) {
-      const channel = discord_client.channels.cache.get(discord_status_channel);
-      state_embed.setMessage(await channel.send({ embeds: [state_embed] }));
-    }
-  }
 }
 
 const loadCfg = (path) => {
