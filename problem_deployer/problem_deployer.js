@@ -51,6 +51,8 @@ const loadCfg = (path) => {
       result[entry[0]] = entry[1];
   }
 
+  console.log(result);
+
   return (key) => {
     if (result.hasOwnProperty(key)) return result[key];
     return null;
