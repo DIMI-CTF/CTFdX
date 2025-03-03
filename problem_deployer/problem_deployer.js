@@ -395,7 +395,7 @@ webhookListener.set("/deploy", async (req) => {
   embed.setDescription("By github webhook.");
   embed.addFields({ name: "commits", value: body.commits.map((c) => `[${(c.message.replace(/\+/g, ' '))}](${c.url})`).join("\n")});
   embed.setFooter({ text: `Triggered at ${new Date()}` });
-  embed.setColor("Green");
+  embed.setColor("Aqua");
   await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
   try {
     await deploy();
