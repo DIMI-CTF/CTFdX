@@ -247,6 +247,7 @@ async function deploy(manual) {
           });
         }
       } else {
+        console.log(register_config)
         challenge_id = (await ctfdReq.post("/challenges", register_config)).json.data.id;
         await ctfdReq.post("/tags", {challenge: challenge_id, value: `ctfdx_${sha256_file}`});
         await ctfdReq.post("/flags", {challenge: challenge_id, content: config("FLAG"), data: "", type: "static"});
