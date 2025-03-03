@@ -41,7 +41,7 @@ const loadCfg = (path) => {
   const per_line = config.split("\n");
   for (let i=0; i < per_line.length; i++) {
     const target = per_line[i];
-    if (target.startsWith("#")) continue;
+    if (!target || target.startsWith("#")) continue;
     if (["__proto__", "prototype"].indexOf(target) !== -1) continue;
 
     const entry = target.split("=");
@@ -51,12 +51,8 @@ const loadCfg = (path) => {
       result[entry[0]] = entry[1];
   }
 
-  console.log(config);
-  console.log(per_line);
-  console.log(result);
-
   return (key) => {
-    if (result.hasOwnProperty(key)) return result[key];
+    if (result[key]) return result[key];
     return null;
   };
 }
