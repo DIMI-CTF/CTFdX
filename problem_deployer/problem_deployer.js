@@ -51,6 +51,8 @@ const loadCfg = (path) => {
       result[entry[0]] = entry[1];
   }
 
+  console.log(config);
+  console.log(per_line);
   console.log(result);
 
   return (key) => {
