@@ -36,7 +36,7 @@ const loadCfg = (path) => {
   const result = {};
 
   if (!fs.existsSync(path)) return null;
-  const config = fs.readFileSync(path, 'utf8');
+  const config = fs.readFileSync(path, 'utf8').replaceAll("\r", "");
 
   const per_line = config.split("\n");
   for (let i=0; i < per_line.length; i++) {
@@ -378,9 +378,9 @@ discord_client.once("ready", (readyClient) => {
     // discord_client.guilds.cache.get("914879556303847434").commands.create(command);
   });
 
-  setInterval(() => {
-    updateState();
-  }, 2000);
+  // setInterval(() => {
+  //   updateState();
+  // }, 2000);
 });
 discord_client.login(process.env.DISCORD_TOKEN);
 
