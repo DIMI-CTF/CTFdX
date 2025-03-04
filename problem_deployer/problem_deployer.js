@@ -262,7 +262,7 @@ async function deploy(manual) {
             type: "static"
           });
         }
-        const challenge_tags = (await ctfdReq.get(`/tags/?challenge_id=${challenge_id}`)).json.data;
+        const challenge_tags = (await ctfdReq.get(`/challenges/${challenge_id}/tags`)).json.data;
         challenge_tags.forEach((tag) => {
           ctfdReq.delete(`/tags/${tag.id}`);
         });
