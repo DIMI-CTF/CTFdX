@@ -218,6 +218,12 @@ async function deploy(manual) {
           register_config["port"] = config("DOCKER_PORT") || "";
           register_config["command"] = config("DOCKER_COMMAND") || "";
           register_config["image"] = `${sha256_file}:latest`;
+
+          if (difficulty) {
+            register_config["initial"] = score;
+            register_config["minimum"] = score_low;
+            register_config["decay"] = 10;
+          }
           break;
         case "dynamic":
           register_config["type"] = "dynamic";
@@ -225,6 +231,13 @@ async function deploy(manual) {
           register_config["minimum"] = config("DECAYED_MINIMUM") || "";
           register_config["decay"] = config("DECAY_VALUE") || "";
           register_config["function"] = config("DECAY_FUNCTION") || "";
+
+          if (difficulty) {
+            register_config["initial"] = score;
+            register_config["decay"] = (score - score_low) / 10;
+            register_config["minimum"] = score_low;
+            register_config["function"] = "Linear";
+          }
           break;
       }
       console.timeEnd("Building Config");
