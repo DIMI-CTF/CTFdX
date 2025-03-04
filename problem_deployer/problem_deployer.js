@@ -63,7 +63,7 @@ const searchFlag = (dir, flag, safes = [], replace) => {
   const list = fs.readdirSync(dir);
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
-    if (fs.lstatSync(path.join(dir, item)).isDirectory()) { searchFlag(path.join(dir, item), flag, safeFiles); continue; }
+    if (fs.lstatSync(path.join(dir, item)).isDirectory()) { searchFlag(path.join(dir, item), flag, safeFiles, replace); continue; }
     if (safeFiles.find(safe => {
       const withoutSlashStart = safe.startsWith("/") ? safe.slice(1, dir.length) : safe;
       const withoutSlashEnd = withoutSlashStart.endsWith("/") ? withoutSlashStart.slice(0, dir.length - 1) : withoutSlashStart;
@@ -133,7 +133,7 @@ async function deploy(manual) {
     for (let i = 0; i < targets.length; i++) {
       STATE.data.detail = "packaging";
       STATE.data.target = targets[i];
-            const file = targets[i];
+      const file = targets[i];
       const sha256_file = crypto.createHash('sha1').update(file).digest('hex');
 
       // load configs
@@ -167,7 +167,7 @@ async function deploy(manual) {
 
       // flag searching
       STATE.data.step = "searching flags";
-            console.time("Searching flags");
+      console.time("Searching flags");
       searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"), config("REPLACE_FLAG"));
       console.timeEnd("Searching flags");
 
@@ -189,6 +189,9 @@ async function deploy(manual) {
       console.time("Building Config");
       const type = config("CHALLENGE_TYPE");
       const register_config = {};
+      const difficulty = config("CHALLENGE_DIFFICULTY");
+      const score = difficulty === "hard" ? 1500 : difficulty === "medium" ? 1000 : difficulty === "easy" ? 500 : 1000;
+      const score_low = difficulty === "hard" ? 1000 : difficulty === "medium" ? 500 : difficulty === "easy" ? 100 : 500;
       register_config["name"] = config("CHALLENGE_NAME") || file;
       register_config["description"] = fs.existsSync(path.join(packaging_dir, file, "readme.md")) ? fs.readFileSync(path.join(packaging_dir, file, "readme.md"), "utf-8") : config("CHALLENGE_MESSAGE");
       register_config["category"] = config("CHALLENGE_CATEGORY") || "";
