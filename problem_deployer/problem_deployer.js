@@ -58,7 +58,7 @@ const loadCfg = (path) => {
 }
 
 const searchFlag = (dir, flag, safes = [], replace) => {
-  const safeFiles = Array.isArray(safes) ? safes : safes || [];
+  const safeFiles = Array.isArray(safes) ? safes : [safes] || [];
 
   const list = fs.readdirSync(dir);
   for (let i = 0; i < list.length; i++) {
@@ -262,10 +262,16 @@ async function deploy(manual) {
             type: "static"
           });
         }
+        const challenge_tags = (await ctfdReq.get(`/tags/?challenge_id=${challenge_id}`)).json.data;
+        challenge_tags.forEach((tag) => {
+          ctfdReq.delete(`/tags/${tag.id}`);
+        });
+        await ctfdReq.post("/tags", {challenge: challenge_id, value: `ctfdx_${sha256_file}`});
+        await ctfdReq.post("/tags", {challenge: challenge_id, value: `difficulty: ${difficulty}`});
       } else {
-        console.log(register_config)
         challenge_id = (await ctfdReq.post("/challenges", register_config)).json.data.id;
         await ctfdReq.post("/tags", {challenge: challenge_id, value: `ctfdx_${sha256_file}`});
+        await ctfdReq.post("/tags", {challenge: challenge_id, value: `difficulty: ${difficulty}`});
         await ctfdReq.post("/flags", {challenge: challenge_id, content: config("FLAG"), data: "", type: "static"});
       }
       console.timeEnd("Problem to ctfd");
