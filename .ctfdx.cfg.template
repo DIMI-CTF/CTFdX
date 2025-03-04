@@ -26,7 +26,6 @@ REPLACE_FLAG=
 POST_FILE_FOR_USER=
 
 
-
 #####################################################
 #                   CTFd 문제 설정
 #####################################################
@@ -54,6 +53,11 @@ CHALLENGE_SCORE=
 # 보이게? 안보이게
 # hidden, visible
 CHALLENGE_STATE=
+
+# 문제 난이도
+# 하드: 1500점, 미디움: 1000, 이지: 500
+# hard, medium, easy
+CHALLENGE_DIFFICULTY=
 
 
 ######## container, dynamic 에 해당되는 설정 ########
