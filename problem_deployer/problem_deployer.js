@@ -90,6 +90,7 @@ const searchFlag = (dir, flag, safes = [], replace) => {
 async function deploy(manual) {
   if (STATE.state === 'running') return;
   const start = Date.now();
+  console.time("Deploy");
 
   fs.rmSync("./repo", { recursive: true, force: true});
   fs.rmSync("./repo.zip", { recursive: true, force: true });
@@ -319,6 +320,9 @@ async function deploy(manual) {
   STATE.data.detail = null;
   STATE.data.target = null;
   STATE.data.step = null;
+
+  console.timeEnd("Deploy");
+
   const embed = new EmbedManager();
   embed.setTitle(`${manual ? "Manual" : "Automatic"} Deploy Success`);
   embed.setDescription(`Successfully deployed ${deploy_count} problems in ${(Date.now() - start)/1000}s`)
