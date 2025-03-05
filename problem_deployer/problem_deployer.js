@@ -352,7 +352,7 @@ async function deploy(manual) {
   embed.setTitle(`${manual ? "Manual" : "Automatic"} Deploy Success`);
   embed.setDescription(`Successfully deployed ${deploy_count} problems in ${(Date.now() - start)/1000}s`)
   if (without.length > 0) {
-    embed.addFields({ name: "except", value: without.join(", ") });
+    embed.addFields({ name: "except", value: without.join("\n") });
   }
   if (manual) embed.setAuthor({ name: manual.globalName, iconURL: manual.avatarURL() });
   embed.setFooter({ text: `Issued at ${new Date()}` });
