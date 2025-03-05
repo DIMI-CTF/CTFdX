@@ -187,9 +187,9 @@ class ContainerManager:
             except json.decoder.JSONDecodeError:
                 raise ContainerException("Volumes JSON string is invalid")
 
-        external_port = random.randint(port, 65535)
+        external_port = random.randint(10000, 65535)
         while not self.__check_port__(external_port):
-            external_port = random.randint(port, 65535)
+            external_port = random.randint(10000, 65535)
 
         print(f"Using {external_port} as the external port for challenge {chal_id} for team {team_id} spawned by {user_id}")
         try:
