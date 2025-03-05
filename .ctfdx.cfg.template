@@ -50,14 +50,19 @@ CHALLENGE_MESSAGE=
 # 문제 점수
 CHALLENGE_SCORE=
 
+# 문제 난이도. 이거 설정하면 다른 점수 설정 무시됨.
+# 하드: 1500점, 미디움: 1000, 이지: 500
+# hard, medium, easy
+CHALLENGE_DIFFICULTY=
+
 # 보이게? 안보이게
 # hidden, visible
 CHALLENGE_STATE=
 
-# 문제 난이도
-# 하드: 1500점, 미디움: 1000, 이지: 500
-# hard, medium, easy
-CHALLENGE_DIFFICULTY=
+# 이 시간 이후에 공개
+# YYYY-MM-DDTHH:ss 형식. 24h 형식.
+# 예) 2025-03-05T20:00
+VISIBLE_AFTER=
 
 
 ######## container, dynamic 에 해당되는 설정 ########

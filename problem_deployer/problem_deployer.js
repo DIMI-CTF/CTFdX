@@ -18,6 +18,8 @@ let stateChanged = false;
 let discord_status_channel = process.env.DISCORD_STATUS_CHANNEL;
 let discord_log_channel = process.env.DISCORD_LOG_CHANNEL;
 let state_embed = null;
+const deploy_reservation = null;
+let deploy_reservation_generated = [];
 
 const ctfdReq = new RequestHelper(`${process.env.CTFD_URI}/api/v1`);
 if (process.env.CTFD_TOKEN) ctfdReq.setTokenAuth(process.env.CTFD_TOKEN);
@@ -87,6 +89,18 @@ const searchFlag = (dir, flag, safes = [], replace) => {
   return true;
 }
 
+/** time: YYYY-MM-DDTHH:mm */
+const isBefore = (time) => {
+  const current = new Date();
+  const target = new Date(time);
+  return target > current
+}
+const isAfter = (time) => {
+  const current = new Date();
+  const target = new Date(time);
+  return target < current
+}
+
 async function deploy(manual) {
   if (STATE.state === 'running') return;
   const start = Date.now();
@@ -125,6 +139,8 @@ async function deploy(manual) {
   fs.mkdirSync(for_user_dir);
 
   const targets = fs.readdirSync(problem_dir);
+
+  deploy_reservation_generated = [];
 
   STATE.data = { detail: null, target: null, step: null };
   let deploy_count = 0;
@@ -197,6 +213,16 @@ async function deploy(manual) {
       register_config["description"] = fs.existsSync(path.join(packaging_dir, file, "readme.md")) ? fs.readFileSync(path.join(packaging_dir, file, "readme.md"), "utf-8") : config("CHALLENGE_MESSAGE");
       register_config["category"] = config("CHALLENGE_CATEGORY") || "";
       register_config["state"] = config("CHALLENGE_STATE") || "hidden";
+      if (config("VISIBLE_AFTER")) {
+        if (!(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T\d{2}:\d{2}$/.test(config("VISIBLE_AFTER"))))
+          throw new Error("VISIBLE_AFTER format is not acceptable.");
+      }
+      if (config("VISIBLE_AFTER") && isBefore(config("VISIBLE_AFTER"))) {
+        register_config["state"] = "hidden";
+        deploy_reservation_generated.push(config("VISIBLE_AFTER"));
+        without.push(`${STATE.data.target} (due to delayed deploy)`);
+        continue;
+      }
       switch (type) {
         case "standard":
           register_config["type"] = "standard";
@@ -378,6 +404,18 @@ discord_client.on("interactionCreate", async (interaction) => {
       break;
   }
 });
+
+setInterval(async () => {
+  if (STATE.state === "running") return;
+  if (deploy_reservation_generated.some(drg => isAfter(drg))) {
+    const embed = new EmbedManager();
+    embed.setTitle("Delayed Deploy triggered");
+    embed.setFooter({ text: `Triggered at ${new Date()}` });
+    embed.setColor("Aqua");
+    await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
+    await deploy();
+  }
+}, 10000);
 
 discord_client.once("ready", (readyClient) => {
   console.log(`Client ready. Logged in as ${readyClient.user.tag} at ${new Date()}`);
