@@ -62,7 +62,7 @@ CHALLENGE_STATE=
 # 이 시간 이후에 공개
 # YYYY-MM-DDTHH:ss 형식. 24h 형식.
 # 예) 2025-03-05T20:00
-VISIBLE_AFTER=
+DEPLOY_AFTER=
 
 
 ######## container, dynamic 에 해당되는 설정 ########

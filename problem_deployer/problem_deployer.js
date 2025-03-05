@@ -213,13 +213,13 @@ async function deploy(manual) {
       register_config["description"] = fs.existsSync(path.join(packaging_dir, file, "readme.md")) ? fs.readFileSync(path.join(packaging_dir, file, "readme.md"), "utf-8") : config("CHALLENGE_MESSAGE");
       register_config["category"] = config("CHALLENGE_CATEGORY") || "";
       register_config["state"] = config("CHALLENGE_STATE") || "hidden";
-      if (config("VISIBLE_AFTER")) {
-        if (!(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T\d{2}:\d{2}$/.test(config("VISIBLE_AFTER"))))
-          throw new Error("VISIBLE_AFTER format is not acceptable.");
+      if (config("DEPLOY_AFTER")) {
+        if (!(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T\d{2}:\d{2}$/.test(config("DEPLOY_AFTER"))))
+          throw new Error("DEPLOY_AFTER format is not acceptable.");
       }
-      if (config("VISIBLE_AFTER") && isBefore(config("VISIBLE_AFTER"))) {
+      if (config("DEPLOY_AFTER") && isBefore(config("DEPLOY_AFTER"))) {
         register_config["state"] = "hidden";
-        deploy_reservation_generated.push(config("VISIBLE_AFTER"));
+        deploy_reservation_generated.push(config("DEPLOY_AFTER"));
         without.push(`${STATE.data.target} (due to delayed deploy)`);
         continue;
       }
