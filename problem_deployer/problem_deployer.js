@@ -230,13 +230,13 @@ async function deploy(manual) {
           register_config["initial"] = config("CHALLENGE_SCORE") || "";
           register_config["minimum"] = config("DECAYED_MINIMUM") || "";
           register_config["decay"] = config("DECAY_VALUE") || "";
-          register_config["function"] = config("DECAY_FUNCTION") || "";
+          register_config["function"] = config("DECAY_FUNCTION").toLowerCase() || "";
 
           if (difficulty) {
             register_config["initial"] = score;
             register_config["decay"] = (score - score_low) / 10;
             register_config["minimum"] = score_low;
-            register_config["function"] = "Linear";
+            register_config["function"] = "linear";
           }
           break;
       }
