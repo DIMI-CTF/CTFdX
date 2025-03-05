@@ -218,7 +218,6 @@ async function deploy(manual) {
           throw new Error("DEPLOY_AFTER format is not acceptable.");
       }
       if (config("DEPLOY_AFTER") && isBefore(config("DEPLOY_AFTER"))) {
-        register_config["state"] = "hidden";
         deploy_reservation_generated.push(config("DEPLOY_AFTER"));
         without.push(`${STATE.data.target} (due to delayed deploy)`);
         continue;
