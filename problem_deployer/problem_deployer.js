@@ -230,7 +230,7 @@ async function deploy(manual) {
           register_config["initial"] = config("CHALLENGE_SCORE") || "";
           register_config["minimum"] = config("DECAYED_MINIMUM") || "";
           register_config["decay"] = config("DECAY_VALUE") || "";
-          register_config["function"] = config("DECAY_FUNCTION").toLowerCase() || "";
+          register_config["function"] = (config("DECAY_FUNCTION") || "").toLowerCase();
 
           if (difficulty) {
             register_config["initial"] = score;
