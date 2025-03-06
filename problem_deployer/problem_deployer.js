@@ -60,6 +60,8 @@ const loadCfg = (path) => {
 }
 
 const searchFlag = (dir, flag, safes = [], replace) => {
+  flag = /^.+\{(.+)}$/.exec(flag)[1];
+
   const safeFiles = Array.isArray(safes) ? safes : safes || [];
 
   const list = fs.readdirSync(dir);
