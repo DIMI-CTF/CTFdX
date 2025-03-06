@@ -60,8 +60,7 @@ const loadCfg = (path) => {
 }
 
 const searchFlag = (dir, flag, safes = [], replace) => {
-  // flag = /^.+\{(.+)}$/.exec(flag)[1];
-
+  flag = /^.+\{(?<target>.+)}$/.exec(flag).groups.target || flag;
 
   const safeFiles = Array.isArray(safes) ? safes : safes || [];
 
