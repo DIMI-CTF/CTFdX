@@ -60,14 +60,16 @@ const loadCfg = (path) => {
 }
 
 const searchFlag = (dir, flag, safes = [], replace) => {
-  flag = /^.+\{(.+)}$/.exec(flag)[1];
+  console.log(flag);
+  console.log(/^.+\{(.+)}$/.exec(flag))
+  const fixedflag = /^.+\{(.+)}$/.exec(flag)[1];
 
   const safeFiles = Array.isArray(safes) ? safes : safes || [];
 
   const list = fs.readdirSync(dir);
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
-    if (fs.lstatSync(path.join(dir, item)).isDirectory()) { searchFlag(path.join(dir, item), flag, safeFiles, replace); continue; }
+    if (fs.lstatSync(path.join(dir, item)).isDirectory()) { searchFlag(path.join(dir, item), fixedflag, safeFiles, replace); continue; }
     if (safeFiles.find(safe => {
       const withoutSlashStart = safe.startsWith("/") ? safe.slice(1, dir.length) : safe;
       const withoutSlashEnd = withoutSlashStart.endsWith("/") ? withoutSlashStart.slice(0, dir.length - 1) : withoutSlashStart;
@@ -78,10 +80,10 @@ const searchFlag = (dir, flag, safes = [], replace) => {
     for (let j = 0; j < searchEncoding.length; j++) {
       const strings = fs.readFileSync(path.join(dir, item), searchEncoding[j]);
       const normalized_decoded_string = strings.normalize("NFC");
-      const normalized_flag = flag.normalize("NFC");
+      const normalized_flag = fixedflag.normalize("NFC");
       if (normalized_decoded_string.indexOf(normalized_flag) !== -1) {
         if (replace === "true")
-          fs.writeFileSync(path.join(dir, item), strings.replaceAll(flag, "[REDACTED]"));
+          fs.writeFileSync(path.join(dir, item), strings.replaceAll(flag, "[REDACTED]").replaceAll(fixedflag, "[REDACTED]"));
         else
           throw new Error("Unsafe hardcoded flag found in " + path.join(dir, item));
       }
