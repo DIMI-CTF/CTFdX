@@ -209,8 +209,8 @@ async function deploy(manual) {
       const type = config("CHALLENGE_TYPE");
       const register_config = {};
       const difficulty = config("CHALLENGE_DIFFICULTY");
-      const score = difficulty === "hard" ? "2000" : difficulty === "medium" ? "1500" : difficulty === "easy" ? "1000" : "200";
-      const score_low = difficulty === "hard" ? "1000" : difficulty === "medium" ? "500" : difficulty === "easy" ? "100" : "100";
+      const score = difficulty === "superhard" ? "3000" : difficulty === "hard" ? "2000" : difficulty === "medium" ? "1500" : difficulty === "easy" ? "1000" : "200";
+      const score_low = difficulty === "superhard" ? "2000" : difficulty === "hard" ? "1000" : difficulty === "medium" ? "500" : difficulty === "easy" ? "100" : "100";
       register_config["name"] = config("CHALLENGE_NAME") || file;
       register_config["description"] = fs.existsSync(path.join(packaging_dir, file, "readme.md")) ? fs.readFileSync(path.join(packaging_dir, file, "readme.md"), "utf-8") : config("CHALLENGE_MESSAGE");
       register_config["category"] = config("CHALLENGE_CATEGORY") || "";
