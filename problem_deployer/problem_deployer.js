@@ -374,7 +374,7 @@ async function deploy(manual) {
     embed.setColor("Aqua");
     await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
     shouldRedeploy = false;
-    deploy();
+    await deploy();
   }
 
   // fs.rmSync("./repo", { recursive: true, force: true });
