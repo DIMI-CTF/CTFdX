@@ -14,11 +14,13 @@ const WebhookListener = require('./WebhookListener');
 const { RequestHelper } = require('webhtools');
 
 const STATE = { state: 'pending', data: { detail: null, target: null, step: null } };
-let stateChanged = false;
 let discord_status_channel = process.env.DISCORD_STATUS_CHANNEL;
 let discord_log_channel = process.env.DISCORD_LOG_CHANNEL;
-let state_embed = null;
+/** if deploy triggered during deploy */
+let shouldRedeploy = false;
+
 const deploy_reservation = null;
+/** delayed deploy */
 let deploy_reservation_generated = [];
 
 const ctfdReq = new RequestHelper(`${process.env.CTFD_URI}/api/v1`);
@@ -104,7 +106,10 @@ const isAfter = (time) => {
 }
 
 async function deploy(manual) {
-  if (STATE.state === 'running') return;
+  if (STATE.state === 'running') {
+    shouldRedeploy = true;
+    return;
+  }
   const start = Date.now();
   console.time("Deploy");
 
@@ -360,7 +365,18 @@ async function deploy(manual) {
   embed.setFooter({ text: `Issued at ${new Date()}` });
   embed.setColor("Green");
   await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
-  
+
+  if (shouldRedeploy) {
+    const embed = new EmbedManager();
+    embed.setTitle("Re-deploy triggered");
+    embed.setDescription("Due to ignored deploy request during deploying.");
+    embed.setFooter({ text: `Triggered at ${new Date()}` });
+    embed.setColor("Aqua");
+    await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
+    shouldRedeploy = false;
+    deploy();
+  }
+
   // fs.rmSync("./repo", { recursive: true, force: true });
   // fs.rmSync("./packaging", { recursive: true, force: true });
   // fs.rmSync("./for_user", { recursive: true, force: true });
