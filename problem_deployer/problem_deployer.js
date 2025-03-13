@@ -19,7 +19,6 @@ let discord_log_channel = process.env.DISCORD_LOG_CHANNEL;
 /** if deploy triggered during deploy */
 let shouldRedeploy = false;
 
-const deploy_reservation = null;
 /** delayed deploy */
 let deploy_reservation_generated = [];
 
@@ -32,8 +31,33 @@ if (process.env.GITHUB_TOKEN) githubReq.setBearerAuth(process.env.GITHUB_TOKEN);
 
 const discord_client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
+const SCORES = {
+  init: {
+    superhard: 3000,
+    hard: 2000,
+    medium: 1500,
+    easy: 1000,
+  },
+  low: {
+    superhard: 2000,
+    hard: 1000,
+    medium: 500,
+    easy: 100,
+  }
+}
+
 const updateState = async () => {
 
+}
+
+const sendError = async (what, e) => {
+  const embed = new EmbedManager();
+  embed.setTitle("Error occurred");
+  embed.setDescription(`During ${what} deploying.`)
+  embed.addFields({ name: "state", value: JSON.stringify(STATE) }, { name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
+  embed.setFooter({ text: `Triggered at ${new Date()}` });
+  embed.setColor("Red");
+  await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
 }
 
 const loadCfg = (path) => {
@@ -111,7 +135,6 @@ async function deploy(manual) {
     return;
   }
   const start = Date.now();
-  console.time("Deploy");
 
   fs.rmSync("./repo", { recursive: true, force: true});
   fs.rmSync("./repo.zip", { recursive: true, force: true });
@@ -119,23 +142,17 @@ async function deploy(manual) {
   STATE.state = 'running';
   STATE.data = { detail: "fetching problems" };
   
-  console.time("Fetching problem");
   const repo_download_res = await githubReq.get("/zipball", null, path.join(__dirname, "./repo.zip"));
   if (!repo_download_res.ok) throw new Error("Cannot download repository.");
-  console.timeEnd("Fetching problem");
 
-  console.time("Unziping problem");
   const unzip = new AdmZip(path.join(__dirname, "./repo.zip"));
   fs.mkdirSync(path.join(__dirname, "repo"));
   unzip.extractAllTo(path.join(__dirname, "repo"), true);
-  console.timeEnd("Unziping problem");
 
-  console.time("Prepare problem");
   const name = fs.readdirSync(path.join(__dirname, "repo"))[0];
   fs.readdirSync(path.join(__dirname, `repo/${name}`)).forEach((e) => { fs.cpSync(path.join(__dirname, `repo/${name}/${e}`), path.join(__dirname, `repo/${e}`), { recursive: true, force: true }); });
   fs.readdirSync(path.join(__dirname, `repo`)).filter(e => e.startsWith(".")).forEach((e) => { fs.rmSync(path.join(__dirname, `repo/${e}`), { recursive: true, force: true }); });
   fs.rmSync(path.join(__dirname, `repo/${name}`), { recursive: true, force: true });
-  console.timeEnd("Prepare problem");
 
   const problem_dir = path.join(__dirname, "repo");
   const packaging_dir = path.join(__dirname, "packaging");
@@ -153,8 +170,8 @@ async function deploy(manual) {
   let deploy_count = 0;
   let without = [];
   const existing_problems = (await ctfdReq.get("/challenges?view=admin")).json.data;
-  try {
-    for (let i = 0; i < targets.length; i++) {
+  for (let i = 0; i < targets.length; i++) {
+    try {
       STATE.data.detail = "packaging";
       STATE.data.target = targets[i];
       const file = targets[i];
@@ -163,19 +180,14 @@ async function deploy(manual) {
       // load configs
       STATE.data.step = "loading configuration";
       
-      console.time("Loading Config");
       const config = loadCfg(path.join(problem_dir, file, ".ctfdx.cfg"));
       if (!config) { without.push(STATE.data.target); continue; }
-      console.timeEnd("Loading Config");
 
-      console.time("Coping for packaging");
       fs.cpSync(path.join(problem_dir, file), path.join(packaging_dir, file), {recursive: true, force: true});
-      console.timeEnd("Coping for packaging");
 
       // replace REDACTED files
       STATE.data.step = "replacing redacted files";
       
-      console.time("Replacing redacted files");
       const redacted = config("REDACTED_FILE");
       fs.rmSync(path.join(packaging_dir, file, ".ctfdx.cfg"), {recursive: true, force: true});
       if (redacted) {
@@ -187,35 +199,29 @@ async function deploy(manual) {
           }
         }
       }
-      console.timeEnd("Replacing redacted files");
 
       // flag searching
       STATE.data.step = "searching flags";
-      console.time("Searching flags");
       searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"), config("REPLACE_FLAG"));
-      console.timeEnd("Searching flags");
 
       // compress to zip
       if ((config("POST_FILE_FOR_USER") || "true") === "true") {
         STATE.data.step = "compressing";
         
-        console.time("Compressing");
         const zip = new AdmZip();
         zip.addLocalFolder(path.join(packaging_dir, file));
         await zip.writeZipPromise(path.join(for_user_dir, `${file}.zip`));
-        console.timeEnd("Compressing");
       }
 
       // build config
       STATE.data.detail = "uploading problems";
       STATE.data.step = "building configuration";
       
-      console.time("Building Config");
       const type = config("CHALLENGE_TYPE");
       const register_config = {};
       const difficulty = config("CHALLENGE_DIFFICULTY");
-      const score = difficulty === "superhard" ? "3000" : difficulty === "hard" ? "2000" : difficulty === "medium" ? "1500" : difficulty === "easy" ? "1000" : "200";
-      const score_low = difficulty === "superhard" ? "2000" : difficulty === "hard" ? "1000" : difficulty === "medium" ? "500" : difficulty === "easy" ? "100" : "100";
+      const score = SCORES.init[difficulty] || 100;
+      const score_low = SCORES.low[difficulty] || 100;
       register_config["name"] = config("CHALLENGE_NAME") || file;
       register_config["description"] = fs.existsSync(path.join(packaging_dir, file, "readme.md")) ? fs.readFileSync(path.join(packaging_dir, file, "readme.md"), "utf-8") : config("CHALLENGE_MESSAGE");
       register_config["category"] = config("CHALLENGE_CATEGORY") || "";
@@ -236,11 +242,9 @@ async function deploy(manual) {
           break;
         case "container":
           // docker build
-          console.time("Docker build");
           const debug1 = await new Promise((accept) => {
             child_process.exec(`docker build . -t "${sha256_file}"`, {cwd: config("DOCKER_LOCATION") ? path.join(problem_dir, file, config("DOCKER_LOCATION")) : path.join(problem_dir, file)}, accept);
           });
-          console.timeEnd("Docker build");
           if (debug1) throw new Error(`${debug1}`);
           register_config["type"] = "container";
           register_config["connection_info"] = "Container";
@@ -272,13 +276,12 @@ async function deploy(manual) {
             register_config["function"] = "linear";
           }
           break;
+        // TODO: extension
       }
-      console.timeEnd("Building Config");
 
       // create or modify challenge
       STATE.data.step = "creating/patching problem to ctfd";
       
-      console.time("Problem to ctfd");
       let challenge_id = "";
       const exists = existing_problems.find((e) => e.tags.find((tag) => tag.value === `ctfdx_${sha256_file}`));
       if (exists) {
@@ -307,16 +310,15 @@ async function deploy(manual) {
         await ctfdReq.post("/tags", {challenge: challenge_id, value: `ctfdx_${sha256_file}`});
         await ctfdReq.post("/flags", {challenge: challenge_id, content: config("FLAG"), data: "", type: "static"});
       }
-      console.timeEnd("Problem to ctfd");
 
       STATE.data.step = "uploading for user file to ctfd";
       
-      console.time("Upload for user");
       const challenge_files = (await ctfdReq.get(`/challenges/${challenge_id}/files`)).json.data;
       challenge_files.forEach((file) => {
         ctfdReq.delete(`/files/${file.id}`);
       });
       if ((config("POST_FILE_FOR_USER") || "true") === "true") {
+        // req helper not work!
         const formData = new FormData();
         formData.append("type", "challenge");
         formData.append("challenge_id", challenge_id);
@@ -333,27 +335,19 @@ async function deploy(manual) {
           path: "/api/v1/files"
         });
       }
-      console.timeEnd("Upload for user");
 
       STATE.data.step = null;
       deploy_count++;
+    } catch (err) {
+      console.log(err);
+      await sendError("individual", err);
     }
-  } catch (err) {
-    console.log(err);
-    const embed = new EmbedManager();
-    embed.setTitle("Error occurred");
-    embed.setDescription("During deploying.")
-    embed.addFields({ name: "state", value: JSON.stringify(STATE) }, { name: err.name, value: err.message }, { name: "Stack trace", value: err.stack });
-    embed.setFooter({ text: `Triggered at ${new Date()}` });
-    embed.setColor("Red");
-    await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
   }
   STATE.state = "done";
   STATE.data.detail = null;
   STATE.data.target = null;
   STATE.data.step = null;
 
-  console.timeEnd("Deploy");
 
   const embed = new EmbedManager();
   embed.setTitle(`${manual ? "Manual" : "Automatic"} Deploy Success`);
@@ -405,13 +399,7 @@ discord_client.on("interactionCreate", async (interaction) => {
         await deploy(interaction.user);
       }catch (e) {
         console.error(e);
-        const embed = new EmbedManager();
-        embed.setTitle("Error occurred");
-        embed.setDescription("During manual deploying.")
-        embed.addFields({ name: "state", value: JSON.stringify(STATE) }, { name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
-        embed.setFooter({ text: `Triggered at ${new Date()}` });
-        embed.setColor("Red");
-        await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
+        await sendError("manual", e);
 
         STATE.state = "error";
         STATE.data.detail = "Error occurred during deploying. Waiting for next deploy.";
@@ -482,14 +470,7 @@ webhookListener.set("/deploy", async (req) => {
     await deploy();
   }catch (e) {
     console.error(e);
-
-    const embed = new EmbedManager();
-    embed.setTitle("Error occurred");
-    embed.setDescription("During auto deploying.")
-    embed.addFields({ name: "state", value: JSON.stringify(STATE) }, { name: e.name, value: e.message }, { name: "Stack trace", value: e.stack });
-    embed.setFooter({ text: `Triggered at ${new Date()}` });
-    embed.setColor("Red");
-    await discord_client.channels.cache.get(discord_log_channel).send({ embeds: [embed] });
+    await sendError("automatic", e);
 
     STATE.state = "error";
     STATE.data.detail = "Error occurred during deploying. Waiting for next deploy.";
