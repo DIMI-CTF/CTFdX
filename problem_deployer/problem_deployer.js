@@ -73,14 +73,11 @@ const loadCfg = (path) => {
     if (["__proto__", "prototype"].indexOf(target) !== -1) continue;
 
     const entry = target.split("=");
-    if (entry[1] && entry[1].indexOf(",") !== -1)
-      result[entry[0]] = entry[1].split(",");
-    else
-      result[entry[0]] = entry[1];
+    result[entry[0]] = entry[1];
   }
 
-  return (key) => {
-    if (result[key]) return result[key];
+  return (key, array=false) => {
+    if (result[key]) return array ? result[key].split(",") : result[key];
     return null;
   };
 }
@@ -184,11 +181,14 @@ async function deploy(manual) {
       if (!config) { without.push(STATE.data.target); continue; }
 
       fs.cpSync(path.join(problem_dir, file), path.join(packaging_dir, file), {recursive: true, force: true});
+      if (fs.existsSync(path.join(packaging_dir, file, "readme.md"))) {
+        fs.rmSync(path.join(packaging_dir, file, "readme.md"), { force: true, recursive: true });
+      }
 
       // replace REDACTED files
       STATE.data.step = "replacing redacted files";
       
-      const redacted = config("REDACTED_FILE");
+      const redacted = config("REDACTED_FILE", true);
       fs.rmSync(path.join(packaging_dir, file, ".ctfdx.cfg"), {recursive: true, force: true});
       if (redacted) {
         if (typeof redacted === "string")
@@ -202,7 +202,7 @@ async function deploy(manual) {
 
       // flag searching
       STATE.data.step = "searching flags";
-      searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE"), config("REPLACE_FLAG"));
+      searchFlag(path.join(packaging_dir, file), config("FLAG"), config("SAFE_FLAG_FILE", true), config("REPLACE_FLAG"));
 
       // compress to zip
       if ((config("POST_FILE_FOR_USER") || "true") === "true") {
