@@ -223,7 +223,7 @@ async function deploy(manual) {
       const score = SCORES.init[difficulty] || 100;
       const score_low = SCORES.low[difficulty] || 100;
       register_config["name"] = config("CHALLENGE_NAME") || file;
-      register_config["description"] = fs.existsSync(path.join(packaging_dir, file, "readme.md")) ? fs.readFileSync(path.join(packaging_dir, file, "readme.md"), "utf-8") : config("CHALLENGE_MESSAGE");
+      register_config["description"] = fs.existsSync(path.join(problem_dir, file, "readme.md")) ? fs.readFileSync(path.join(problem_dir, file, "readme.md"), "utf-8") : config("CHALLENGE_MESSAGE");
       register_config["category"] = config("CHALLENGE_CATEGORY") || "";
       register_config["state"] = config("CHALLENGE_STATE") || "hidden";
       if (config("DEPLOY_AFTER")) {
