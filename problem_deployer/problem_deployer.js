@@ -340,7 +340,7 @@ async function deploy(manual) {
       deploy_count++;
     } catch (err) {
       console.log(err);
-      without.push(STATE.data.target);
+      without.push(`${STATE.data.target} (due to ${err.message})`);
       await sendError("individual", err);
     }
   }
