@@ -131,6 +131,7 @@ async function deploy(manual) {
     shouldRedeploy = true;
     return;
   }
+  shouldRedeploy = false;
   const start = Date.now();
 
   fs.rmSync("./repo", { recursive: true, force: true});
