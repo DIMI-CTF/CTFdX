@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const child_process = require('child_process');
 
-const { Client, GatewayIntentBits, SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { Client, GatewayIntentBits, SlashCommandBuilder, MessageFlags, PermissionsString } = require('discord.js');
 const AdmZip = require('adm-zip');
 const FormData = require('form-data');
 
@@ -383,10 +383,14 @@ async function deploy(manual) {
 
 discord_client.on("interactionCreate", async (interaction) => {
   console.log(interaction.commandName);
+  const member = interaction.guild.members.cache.find((m) => m.id === interaction.user.id);
+  const role = member.roles.highest;
+  const permissions = role.permissions.serialize();
+  if (!permissions["Administrator"]) {
+    await interaction.reply({ content: `명령어 실행에 권한이 부족합니다.`, flags: MessageFlags.Ephemeral })
+    return;
+  }
   switch (interaction.commandName) {
-    case "ping":
-      await interaction.reply({ content: "pong!", flags: MessageFlags.Ephemeral });
-      break;
     case "set-log-channel":
       discord_status_channel = interaction.channelId;
       await interaction.reply({ content: `Successfully set the ctfdx status channel as <#${discord_status_channel}>`, flags: MessageFlags.Ephemeral });
@@ -432,8 +436,8 @@ discord_client.once("ready", (readyClient) => {
       .setName("ping")
       .setDescription("pong"),
     new SlashCommandBuilder()
-      .setName("set-status-channel")
-      .setDescription("Set default status channel for ctfdx"),
+      .setName("set-notice-channel")
+      .setDescription("Set default notice channel for ctfdx"),
     new SlashCommandBuilder()
       .setName("set-log-channel")
       .setDescription("Set default log channel for ctfdx"),
